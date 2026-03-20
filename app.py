@@ -6,40 +6,33 @@ st.set_page_config(
     page_title="Repasse do Diesel",
     page_icon="🚌",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
-# Remove streamlit default padding + force sidebar always visible
 st.markdown("""
 <style>
     [data-testid="stAppViewContainer"] > .main { padding: 0 !important; }
     [data-testid="stHeader"] { display: none; }
     .block-container { padding: 0 !important; max-width: 100% !important; }
-    section[data-testid="stSidebar"] {
-        background: #FFFFFF !important;
-        border-right: 1px solid rgba(0,0,0,0.08);
-        min-width: 280px !important;
-        width: 280px !important;
-    }
+    section[data-testid="stSidebar"] { display: none !important; }
     [data-testid="collapsedControl"] { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── SIDEBAR — UPLOAD ──────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("## 📂 Arquivos CSV")
-    st.caption("Substitua qualquer arquivo para atualizar a análise automaticamente.")
-    st.divider()
+# Upload expander no topo
+with st.expander("📂 Atualizar arquivos CSV", expanded=False):
+    st.caption("Substitua qualquer arquivo para atualizar a análise. Deixe em branco para usar os dados padrão do repositório.")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        up_semanas    = st.file_uploader("Semanas anteriores",  type="csv", key="up_sem")
+        up_s16        = st.file_uploader("Semana 16-22/03",     type="csv", key="up_s16")
+    with col2:
+        up_s23        = st.file_uploader("Semana 23-29/03",     type="csv", key="up_s23")
+        up_pascoa     = st.file_uploader("Feriado Pascoa",      type="csv", key="up_pas")
+    with col3:
+        up_tiradentes = st.file_uploader("Feriado Tiradentes",  type="csv", key="up_tir")
 
-    up_semanas    = st.file_uploader("Semanas anteriores",  type="csv", key="up_sem")
-    up_s16        = st.file_uploader("Semana 16–22/03",     type="csv", key="up_s16")
-    up_s23        = st.file_uploader("Semana 23–29/03",     type="csv", key="up_s23")
-    up_pascoa     = st.file_uploader("Feriado Páscoa",      type="csv", key="up_pas")
-    up_tiradentes = st.file_uploader("Feriado Tiradentes",  type="csv", key="up_tir")
 
-    st.divider()
-    st.caption("**Referência base:** semana 23/02–01/03/2026")
-    st.caption("**Reajuste:** pós 16/03/2026")
 
 # ── LOAD DATA ─────────────────────────────────────────────────────────────────
 def load_file(upload, default_name):
