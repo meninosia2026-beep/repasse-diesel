@@ -9,13 +9,19 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Remove streamlit default padding
+# Remove streamlit default padding + force sidebar always visible
 st.markdown("""
 <style>
     [data-testid="stAppViewContainer"] > .main { padding: 0 !important; }
     [data-testid="stHeader"] { display: none; }
     .block-container { padding: 0 !important; max-width: 100% !important; }
-    section[data-testid="stSidebar"] { background: #FFFFFF; border-right: 1px solid rgba(0,0,0,0.08); }
+    section[data-testid="stSidebar"] {
+        background: #FFFFFF !important;
+        border-right: 1px solid rgba(0,0,0,0.08);
+        min-width: 280px !important;
+        width: 280px !important;
+    }
+    [data-testid="collapsedControl"] { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -39,9 +45,10 @@ with st.sidebar:
 def load_file(upload, default_name):
     if upload:
         return pd.read_csv(upload)
-    path = os.path.join("data", default_name)
-    if os.path.exists(path):
-        return pd.read_csv(path)
+    for folder in ["data", "."]:
+        path = os.path.join(folder, default_name)
+        if os.path.exists(path):
+            return pd.read_csv(path)
     return None
 
 df_semanas    = load_file(up_semanas,    "semanas_anteriores.csv")
