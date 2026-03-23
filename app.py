@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 st.set_page_config(
     page_title="Repasse do Diesel",
@@ -54,7 +55,7 @@ df_tiradentes = load_file(up_tiradentes, "feriado_tiradentes.csv")
 # Detecta fonte e timestamp
 any_upload = any([up_semanas, up_s16, up_s23, up_pascoa, up_tiradentes])
 update_source = "upload manual" if any_upload else "Databricks"
-update_time = datetime.now().strftime("%d/%m/%Y %H:%M")
+update_time = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M")
 update_label = f"Atualizado em {update_time} · via {update_source}"
 
 def df_to_json(df):
