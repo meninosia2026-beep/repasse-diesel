@@ -64,7 +64,7 @@ if any_upload:
 elif "last_upload_time" not in st.session_state:
     # Primeira carga do Git — registra uma vez
     st.session_state["last_upload_time"] = now_sp.strftime("%d/%m/%Y %H:%M")
-    st.session_state["last_upload_source"] = "Databricks"
+    st.session_state["last_upload_source"] = "repositório GitHub"
 
 update_label = f"Importado em {st.session_state['last_upload_time']} · via {st.session_state['last_upload_source']}"
 
