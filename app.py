@@ -53,20 +53,33 @@ df_s23        = load_file(up_s23,        "semana_23_a_29.csv")
 df_pascoa     = load_file(up_pascoa,     "feriado_pascoa.csv")
 df_tiradentes = load_file(up_tiradentes, "feriado_tiradentes.csv")
 
-# Salva timestamp de import na session_state
+# Timestamp de atualização
 any_upload = any([up_semanas, up_s16, up_s23, up_pascoa, up_tiradentes])
-now_sp = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
 if any_upload:
-    # Novo upload — atualiza timestamp
-    st.session_state["last_upload_time"] = now_sp.strftime("%d/%m/%Y %H:%M")
-    st.session_state["last_upload_source"] = "upload manual"
-elif "last_upload_time" not in st.session_state:
-    # Primeira carga do Git — registra uma vez
-    st.session_state["last_upload_time"] = now_sp.strftime("%d/%m/%Y %H:%M")
-    st.session_state["last_upload_source"] = "repositório GitHub"
-
-update_label = f"Importado em {st.session_state['last_upload_time']} · via {st.session_state['last_upload_source']}"
+    now_sp = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M")
+    update_label = f"Importado em {now_sp} · via upload manual"
+else:
+    # Busca data do último commit dos CSVs via API do GitHub
+    try:
+        import urllib.request, json
+        # Detecta repo automaticamente a partir da variável de ambiente do Streamlit Cloud
+        repo = os.environ.get("STREAMLIT_SHARING_MODE", "")
+        # Tenta pegar do git log local (funciona no Streamlit Cloud)
+        import subprocess
+        result = subprocess.run(
+            ["git", "log", "-1", "--format=%ci", "--", "semanas_anteriores.csv", "data/semanas_anteriores.csv"],
+            capture_output=True, text=True, cwd="."
+        )
+        if result.stdout.strip():
+            from datetime import datetime as dt
+            git_date = dt.fromisoformat(result.stdout.strip())
+            git_date_sp = git_date.astimezone(ZoneInfo("America/Sao_Paulo"))
+            update_label = f"Atualizado em {git_date_sp.strftime('%d/%m/%Y %H:%M')} · via repositório GitHub"
+        else:
+            update_label = "via repositório GitHub"
+    except Exception:
+        update_label = "via repositório GitHub"
 
 def df_to_json(df):
     if df is None:
