@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+from datetime import datetime
 
 st.set_page_config(
     page_title="Repasse do Diesel",
@@ -50,6 +51,12 @@ df_s23        = load_file(up_s23,        "semana_23_a_29.csv")
 df_pascoa     = load_file(up_pascoa,     "feriado_pascoa.csv")
 df_tiradentes = load_file(up_tiradentes, "feriado_tiradentes.csv")
 
+# Detecta fonte e timestamp
+any_upload = any([up_semanas, up_s16, up_s23, up_pascoa, up_tiradentes])
+update_source = "upload manual" if any_upload else "repositório GitHub"
+update_time = datetime.now().strftime("%d/%m/%Y %H:%M")
+update_label = f"Atualizado em {update_time} · via {update_source}"
+
 def df_to_json(df):
     if df is None:
         return "null"
@@ -63,6 +70,7 @@ const INJECTED = {{
   pascoa:     {df_to_json(df_pascoa)},
   tiradentes: {df_to_json(df_tiradentes)},
 }};
+const UPDATE_LABEL = "{update_label}";
 """
 
 # ── HTML DASHBOARD ────────────────────────────────────────────────────────────
@@ -148,8 +156,16 @@ html = f"""<!DOCTYPE html>
 </head>
 <body>
 <div class="header">
-  <div class="title">Monitoramento de Repasse do Diesel</div>
-  <div class="subtitle">Transporte rodoviário de passageiros — Comparativo pós-reajuste</div>
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div>
+      <div class="title">Monitoramento de Repasse do Diesel</div>
+      <div class="subtitle">Transporte rodoviário de passageiros — Comparativo pós-reajuste</div>
+    </div>
+    <div id="update-badge" style="display:flex;align-items:center;gap:6px;background:#E3F2E9;border:1px solid rgba(46,107,64,.2);border-radius:20px;padding:5px 12px;font-size:12px;color:#2E6B40;white-space:nowrap;margin-top:4px">
+      <span style="width:7px;height:7px;border-radius:50%;background:#2E6B40;display:inline-block"></span>
+      <span id="update-text">carregando...</span>
+    </div>
+  </div>
 </div>
 <div class="tabs">
   <div class="tab active" onclick="switchTab('resumo',this)">Resumo executivo</div>
@@ -356,6 +372,7 @@ function rFer(key,nome,dias,refNome){{
 
 rExec();
 ['semanas','s16','s23','pascoa','tiradentes'].forEach(rp);
+document.getElementById('update-text').textContent = UPDATE_LABEL;
 </script>
 </body></html>"""
 
