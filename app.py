@@ -75,11 +75,11 @@ else:
             from datetime import datetime as dt
             git_date = dt.fromisoformat(result.stdout.strip())
             git_date_sp = git_date.astimezone(ZoneInfo("America/Sao_Paulo"))
-            update_label = f"Atualizado em {git_date_sp.strftime('%d/%m/%Y %H:%M')} · via repositório GitHub"
+            update_label = f"Atualizado em {git_date_sp.strftime('%d/%m/%Y %H:%M')} · via databricks"
         else:
-            update_label = "via repositório GitHub"
+            update_label = "via databricks"
     except Exception:
-        update_label = "via repositório GitHub"
+        update_label = "via databricks"
 
 def df_to_json(df):
     if df is None:
