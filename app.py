@@ -294,8 +294,14 @@ function rExec(){{
     <table><thead><tr><th>Trecho</th><th>Variação média</th><th>Classificação</th></tr></thead>
     <tbody>${{top.map(r=>`<tr><td class="tt">${{ts(r.t)}}</td><td>${{fv(r.a)}}</td><td>${{badge(r.c)}}</td></tr>`).join('')}}</tbody></table></div>`:''}}
     <div class="ig">
-      <div class="ic"><h4>Maior variação</h4><p><strong>${{ts(hi.trecho_unico)}}</strong> com ${{fv(hi.pct)}} — ${{badge(hi.cls)}}</p></div>
-      <div class="ic"><h4>Menor variação</h4><p><strong>${{ts(lo.trecho_unico)}}</strong> com ${{fv(lo.pct)}} — sem sinal de repasse.</p></div>
+      <div class="ic">
+        <h4>Maior repasse identificado</h4>
+        <p><strong>${{ts(hi.trecho_unico)}}</strong> registrou a maior alta: ${{fv(hi.pct)}} vs. semana-base — ${{badge(hi.cls)}}.</p>
+      </div>
+      <div class="ic">
+        <h4>Trecho sem repasse</h4>
+        <p><strong>${{ts(lo.trecho_unico)}}</strong> apresentou ${{fv(lo.pct)}} — ${{lo.pct < 0 ? 'preço abaixo da referência, sem indício de repasse.' : 'variação mínima, sem indício de repasse.'}}</p>
+      </div>
       <div class="ic"><h4>Legenda</h4><p><span class="badge ba">Muito relevante</span> ≥15% &nbsp;<span class="badge bm">Moderado</span> 10–15% &nbsp;<span class="badge bl">Leve</span> 5–10%</p></div>
     </div>`;
 
