@@ -35,27 +35,59 @@ with st.expander("📂 Atualizar arquivos CSV", expanded=False):
         up_tiradentes = st.file_uploader("Feriado Tiradentes",  type="csv", key="up_tir")
 
 
-
 # ── LOAD DATA ─────────────────────────────────────────────────────────────────
 def load_file(upload, default_name):
-    if upload:
-        return pd.read_csv(upload)
+    tz = ZoneInfo("America/Sao_Paulo")
+
+    # Caso 1: arquivo enviado manualmente
+    if upload is not None:
+        df = pd.read_csv(upload)
+        imported_at = datetime.now(tz)
+        source = "upload manual"
+        return df, imported_at, source
+
+    # Caso 2: arquivo padrão salvo no projeto
     for folder in ["data", "."]:
         path = os.path.join(folder, default_name)
         if os.path.exists(path):
-            return pd.read_csv(path)
-    return None
+            df = pd.read_csv(path)
+            imported_at = datetime.fromtimestamp(os.path.getmtime(path), tz=tz)
+            source = "repositório GitHub"
+            return df, imported_at, source
 
-df_semanas    = load_file(up_semanas,    "semanas_anteriores.csv")
-df_s16        = load_file(up_s16,        "semana_16_a_22.csv")
-df_s23        = load_file(up_s23,        "semana_23_a_29.csv")
-df_pascoa     = load_file(up_pascoa,     "feriado_pascoa.csv")
-df_tiradentes = load_file(up_tiradentes, "feriado_tiradentes.csv")
+    return None, None, None
 
-# Detecta fonte e timestamp
-any_upload = any([up_semanas, up_s16, up_s23, up_pascoa, up_tiradentes])
-update_source = "upload manual" if any_upload else "Databricks"
-update_time = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M")
+
+df_semanas, ts_semanas, src_semanas = load_file(up_semanas, "semanas_anteriores.csv")
+df_s16, ts_s16, src_s16 = load_file(up_s16, "semana_16_a_22.csv")
+df_s23, ts_s23, src_s23 = load_file(up_s23, "semana_23_a_29.csv")
+df_pascoa, ts_pascoa, src_pascoa = load_file(up_pascoa, "feriado_pascoa.csv")
+df_tiradentes, ts_tiradentes, src_tiradentes = load_file(up_tiradentes, "feriado_tiradentes.csv")
+
+# Detecta fonte e timestamp real dos arquivos carregados
+timestamps = [
+    ts for ts in [
+        ts_semanas,
+        ts_s16,
+        ts_s23,
+        ts_pascoa,
+        ts_tiradentes
+    ] if ts is not None
+]
+
+sources = [
+    src for src in [
+        src_semanas,
+        src_s16,
+        src_s23,
+        src_pascoa,
+        src_tiradentes
+    ] if src is not None
+]
+
+latest_update = max(timestamps) if timestamps else None
+update_source = "upload manual" if "upload manual" in sources else "repositório GitHub"
+update_time = latest_update.strftime("%d/%m/%Y %H:%M") if latest_update else "sem data"
 update_label = f"Atualizado em {update_time} · via {update_source}"
 
 def df_to_json(df):
@@ -305,16 +337,16 @@ function rExec(){{
       <div class="ic"><h4>Legenda</h4><p><span class="badge ba">Muito relevante</span> ≥15% &nbsp;<span class="badge bm">Moderado</span> 10–15% &nbsp;<span class="badge bl">Leve</span> 5–10%</p></div>
     </div>`;
 
-  dc('c-exec-p');setTimeout(()=>{{
+  dc('c-exec-p');setTimeout(()=>{
     const ctx=document.getElementById('c-exec-p');if(!ctx)return;
-    CI['c-exec-p']=new Chart(ctx,{{type:'bar',
-      data:{{labels:ps.map(p=>p.label),datasets:[{{data:ps.map(p=>parseFloat(p.avg.toFixed(1))),backgroundColor:ps.map(p=>CL[p.cls]||'#9C9A93'),borderRadius:6}}]}},
-      options:{{responsive:true,maintainAspectRatio:false,
-        plugins:{{legend:{{display:false}},tooltip:{{callbacks:{{label:c=>`${{c.raw>0?'+':''}}${{c.raw.toFixed(1)}}%`}}}}}},
-        scales:{{x:{{grid:{{display:false}},ticks:{{font:{{size:12}}}}}},y:{{grid:{{color:'rgba(0,0,0,0.05)'}},ticks:{{callback:v=>`${{v>0?'+':''}}${{v.toFixed(0)}}%`,font:{{size:11}}}}}}}}
-      }}
-    }});
-  }},50);
+    CI['c-exec-p']=new Chart(ctx,{type:'bar',
+      data:{labels:ps.map(p=>p.label),datasets:[{data:ps.map(p=>parseFloat(p.avg.toFixed(1))),backgroundColor:ps.map(p=>CL[p.cls]||'#9C9A93'),borderRadius:6}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw>0?'+':''}${c.raw.toFixed(1)}%`}}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:12}}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{callback:v=>`${v>0?'+':''}${v.toFixed(0)}%`,font:{size:11}}}}
+      }
+    });
+  },50);
 }}
 
 function rSem(){{
@@ -326,10 +358,10 @@ function rSem(){{
     <h2 class="stitle">Semanas anteriores ao reajuste</h2>
     <p class="sdesc">Preços médios agregados por trecho vs. semana-base 23/02–01/03/2026.</p>
     <div class="cc"><h3>Variação percentual por trecho</h3><p class="cdesc">Positivo = preço atual acima da referência</p>
-      <div class="cwrap" style="height:${{Math.max(300,sorted.length*38)}}px"><canvas id="c-sem"></canvas></div></div>
-    <div class="tc"><div class="th2"><h3>Tabela detalhada</h3>${{chips('semanas',f)}}</div>
+      <div class="cwrap" style="height:${Math.max(300,sorted.length*38)}px"><canvas id="c-sem"></canvas></div></div>
+    <div class="tc"><div class="th2"><h3>Tabela detalhada</h3>${chips('semanas',f)}</div>
     <table><thead><tr><th>Trecho</th><th>Preço ref.</th><th>Preço atual</th><th>Variação</th><th>Classificação</th></tr></thead>
-    <tbody>${{filtered.map(r=>`<tr><td class="tt">${{r.tf}}</td><td>${{fb(r.media_preco_referencia)}}</td><td>${{fb(r.media_preco_atual)}}</td><td>${{fv(r.pct)}}</td><td>${{badge(r.cls)}}</td></tr>`).join('')}}</tbody></table></div>`;
+    <tbody>${filtered.map(r=>`<tr><td class="tt">${r.tf}</td><td>${fb(r.media_preco_referencia)}</td><td>${fb(r.media_preco_atual)}</td><td>${fv(r.pct)}</td><td>${badge(r.cls)}</td></tr>`).join('')}</tbody></table></div>`;
   bar('c-sem',sorted.map(r=>r.tf),sorted.map(r=>parseFloat(r.pct.toFixed(1))),sorted.map(r=>CL[r.cls]||'#9C9A93'),Math.max(300,sorted.length*38));
 }}
 
@@ -346,16 +378,16 @@ function rDet(key,title){{
   const fs=filt(sum,f);const fd=filt(e,f).sort((a,b)=>a.trecho_unico.localeCompare(b.trecho_unico));
   const sorted=[...sum].sort((a,b)=>a.pct-b.pct);
   document.getElementById('panel-'+key).innerHTML=`
-    <h2 class="stitle">Semana ${{title}}</h2>
+    <h2 class="stitle">Semana ${title}</h2>
     <p class="sdesc">Preços por dia e antecedência vs. mesma antecedência na semana-base.</p>
     <div class="cc"><h3>Variação média por trecho</h3><p class="cdesc">Média de todos os dias e antecedências</p>
-      <div class="cwrap" style="height:${{Math.max(280,sorted.length*38)}}px"><canvas id="c-${{key}}"></canvas></div></div>
-    <div class="tc"><div class="th2"><h3>Resumo por trecho (média semanal)</h3>${{chips(key,f)}}</div>
+      <div class="cwrap" style="height:${Math.max(280,sorted.length*38)}px"><canvas id="c-${key}"></canvas></div></div>
+    <div class="tc"><div class="th2"><h3>Resumo por trecho (média semanal)</h3>${chips(key,f)}</div>
     <table><thead><tr><th>Trecho</th><th>Preço ref.</th><th>Preço médio</th><th>Variação</th><th>Classificação</th></tr></thead>
-    <tbody>${{fs.map(r=>`<tr><td class="tt">${{r.tf}}</td><td>${{fb(r.media_preco_referencia)}}</td><td>${{fb(r.media_preco_atual)}}</td><td>${{fv(r.pct)}}</td><td>${{badge(r.cls)}}</td></tr>`).join('')}}</tbody></table></div>
+    <tbody>${fs.map(r=>`<tr><td class="tt">${r.tf}</td><td>${fb(r.media_preco_referencia)}</td><td>${fb(r.media_preco_atual)}</td><td>${fv(r.pct)}</td><td>${badge(r.cls)}</td></tr>`).join('')}</tbody></table></div>
     <div class="tc"><div class="th2"><h3>Detalhamento por dia e antecedência</h3></div>
     <table><thead><tr><th>Trecho</th><th>Data</th><th>Antec.</th><th>Preço ref.</th><th>Preço atual</th><th>Variação</th><th>Classificação</th></tr></thead>
-    <tbody>${{fd.map(r=>`<tr><td class="tt">${{r.tf}}</td><td>${{r.data||'–'}}</td><td>D${{r.antecedencia}}</td><td>${{fb(r.media_preco_referencia)}}</td><td>${{fb(r.media_preco_atual)}}</td><td>${{fv(r.pct)}}</td><td>${{badge(r.cls)}}</td></tr>`).join('')}}</tbody></table></div>`;
+    <tbody>${fd.map(r=>`<tr><td class="tt">${r.tf}</td><td>${r.data||'–'}</td><td>D${r.antecedencia}</td><td>${fb(r.media_preco_referencia)}</td><td>${fb(r.media_preco_atual)}</td><td>${fv(r.pct)}</td><td>${badge(r.cls)}</td></tr>`).join('')}</tbody></table></div>`;
   bar('c-'+key,sorted.map(r=>r.tf),sorted.map(r=>parseFloat(r.pct.toFixed(1))),sorted.map(r=>CL[r.cls]||'#9C9A93'),Math.max(280,sorted.length*38));
 }}
 
@@ -365,15 +397,15 @@ function rFer(key,nome,dias,refNome){{
   const f=AF[key];
   const filtered=filt(e,f).sort((a,b)=>b.pct-a.pct);
   const sorted=[...e].sort((a,b)=>a.pct-b.pct);
-  const labels=sorted.map(r=>r.tf+(e.filter(x=>x.trecho_unico===r.trecho_unico).length>1?` (${{r.sentido}})`:''));
+  const labels=sorted.map(r=>r.tf+(e.filter(x=>x.trecho_unico===r.trecho_unico).length>1?` (${r.sentido})`:''));
   document.getElementById('panel-'+key).innerHTML=`
-    <h2 class="stitle">Feriado de ${{nome}}</h2>
-    <p class="sdesc">Dias de maior movimento: ${{dias}}. Referência: ${{refNome}}.</p>
-    <div class="cc"><h3>Variação percentual vs. ${{refNome}}</h3><p class="cdesc">Preço atual vs. mesmo trecho no ${{refNome}}</p>
-      <div class="cwrap" style="height:${{Math.max(280,sorted.length*42)}}px"><canvas id="c-${{key}}"></canvas></div></div>
-    <div class="tc"><div class="th2"><h3>Tabela detalhada — ${{nome}}</h3>${{chips(key,f)}}</div>
-    <table><thead><tr><th>Trecho</th><th>Data</th><th>Sentido</th><th>Antec.</th><th>Ref. (${{refNome}})</th><th>Preço atual</th><th>Variação</th><th>Classificação</th></tr></thead>
-    <tbody>${{filtered.map(r=>`<tr><td class="tt">${{r.tf}}</td><td>${{r.data||'–'}}</td><td>${{r.sentido}}</td><td>D${{r.antecedencia}}</td><td>${{fb(r.media_preco_referencia)}}</td><td>${{fb(r.media_preco_atual)}}</td><td>${{fv(r.pct)}}</td><td>${{badge(r.cls)}}</td></tr>`).join('')}}</tbody></table></div>`;
+    <h2 class="stitle">Feriado de ${nome}</h2>
+    <p class="sdesc">Dias de maior movimento: ${dias}. Referência: ${refNome}.</p>
+    <div class="cc"><h3>Variação percentual vs. ${refNome}</h3><p class="cdesc">Preço atual vs. mesmo trecho no ${refNome}</p>
+      <div class="cwrap" style="height:${Math.max(280,sorted.length*42)}px"><canvas id="c-${key}"></canvas></div></div>
+    <div class="tc"><div class="th2"><h3>Tabela detalhada — ${nome}</h3>${chips(key,f)}</div>
+    <table><thead><tr><th>Trecho</th><th>Data</th><th>Sentido</th><th>Antec.</th><th>Ref. (${refNome})</th><th>Preço atual</th><th>Variação</th><th>Classificação</th></tr></thead>
+    <tbody>${filtered.map(r=>`<tr><td class="tt">${r.tf}</td><td>${r.data||'–'}</td><td>${r.sentido}</td><td>D${r.antecedencia}</td><td>${fb(r.media_preco_referencia)}</td><td>${fb(r.media_preco_atual)}</td><td>${fv(r.pct)}</td><td>${badge(r.cls)}</td></tr>`).join('')}</tbody></table></div>`;
   bar('c-'+key,labels,sorted.map(r=>parseFloat(r.pct.toFixed(1))),sorted.map(r=>CL[r.cls]||'#9C9A93'),Math.max(280,sorted.length*42));
 }}
 
