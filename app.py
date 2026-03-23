@@ -360,4 +360,8 @@ rExec();
 </body></html>"""
 
 import streamlit.components.v1 as components
-components.html(html, height=2600, scrolling=True)
+import hashlib
+
+# Gera uma chave única baseada nos dados — força rerenderização quando CSVs mudam
+data_hash = hashlib.md5(data_js.encode()).hexdigest()
+components.html(html, height=2600, scrolling=True, key=data_hash)
