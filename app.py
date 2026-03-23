@@ -362,6 +362,7 @@ rExec();
 import streamlit.components.v1 as components
 import hashlib
 
-# Gera uma chave única baseada nos dados — força rerenderização quando CSVs mudam
+# Injeta o hash no HTML para forçar rerenderização quando dados mudam
 data_hash = hashlib.md5(data_js.encode()).hexdigest()
-components.html(html, height=2600, scrolling=True, key=data_hash)
+html_with_hash = html.replace("</body>", f"<!-- hash:{data_hash} --></body>")
+components.html(html_with_hash, height=2600, scrolling=True)
