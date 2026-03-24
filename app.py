@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime, date
+from datetime import datetime
 from zoneinfo import ZoneInfo
-import plotly.graph_objects as go
+
 
 st.set_page_config(
     page_title="Repasse do Diesel",
@@ -14,157 +14,30 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
-
-html, body, [data-testid="stAppViewContainer"] {
-    background: #F7F5F0 !important;
-    font-family: 'DM Sans', sans-serif;
-}
-[data-testid="stHeader"] { display: none; }
-[data-testid="stSidebar"] { display: none; }
-[data-testid="collapsedControl"] { display: none; }
-.block-container { padding: 0 !important; max-width: 100% !important; }
-
-/* NAV */
-.nav-bar {
-    background: white;
-    border-bottom: 1px solid rgba(0,0,0,0.07);
-    padding: 0 40px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 56px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-}
-.nav-title {
-    font-family: 'DM Serif Display', serif;
-    font-size: 17px;
-    color: #1A1A18;
-    letter-spacing: -0.2px;
-}
-.nav-badge {
-    font-size: 11px;
-    color: #2E6B40;
-    background: #E3F2E9;
-    border: 1px solid rgba(46,107,64,.2);
-    border-radius: 20px;
-    padding: 4px 12px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.nav-dot { width:7px; height:7px; border-radius:50%; background:#2E6B40; display:inline-block; }
-
-/* TABS */
-.stTabs [data-baseweb="tab-list"] {
-    background: white;
-    border-bottom: 1px solid rgba(0,0,0,0.07);
-    padding: 0 32px;
-    gap: 0;
-}
-.stTabs [data-baseweb="tab"] {
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    font-weight: 500;
-    color: #6B6963;
-    padding: 14px 18px;
-    border-radius: 0;
-    background: transparent;
-    border-bottom: 2px solid transparent;
-}
-.stTabs [aria-selected="true"] {
-    color: #1A1A18 !important;
-    border-bottom: 2px solid #C8402A !important;
-    background: transparent !important;
-}
-.stTabs [data-baseweb="tab-highlight"] { display: none; }
-.stTabs [data-baseweb="tab-border"] { display: none; }
-.stTabs [data-baseweb="tab-panel"] {
-    padding: 28px 40px !important;
-    background: #F7F5F0;
-}
-
-/* CARDS */
-.metric-card {
-    background: white;
-    border: 1px solid rgba(0,0,0,0.07);
-    border-radius: 10px;
-    padding: 16px 18px;
-}
-.verdict-card {
-    background: white;
-    border: 1px solid rgba(0,0,0,0.07);
-    border-left: 4px solid #C8402A;
-    border-radius: 12px;
-    padding: 20px 24px;
-    margin-bottom: 20px;
-}
-.verdict-label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: #C8402A;
-    margin-bottom: 8px;
-}
-.verdict-title {
-    font-family: 'DM Serif Display', serif;
-    font-size: 18px;
-    line-height: 1.35;
-    color: #1A1A18;
-    margin-bottom: 8px;
-}
-.verdict-body { font-size: 13px; color: #6B6963; line-height: 1.7; }
-
-/* TABLES */
-.stDataFrame { border-radius: 12px; overflow: hidden; }
-thead tr th {
-    font-size: 11px !important;
-    font-weight: 600 !important;
-    text-transform: uppercase !important;
-    letter-spacing: .06em !important;
-    color: #9C9A93 !important;
-    background: #F0EDE6 !important;
-}
-
-/* BADGE */
-.badge-alto  { background:#FAE8E4; color:#C8402A; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; }
-.badge-mod   { background:#FDF3DC; color:#B07A10; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; }
-.badge-leve  { background:#E3F2E9; color:#2E6B40; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; }
-.badge-neg   { background:#EDECE9; color:#4A4A46; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; }
-
-/* SECTION TITLE */
-.section-title {
-    font-family: 'DM Serif Display', serif;
-    font-size: 17px;
-    font-weight: 400;
-    color: #1A1A18;
-    margin-bottom: 4px;
-}
-.section-desc { font-size: 13px; color: #6B6963; margin-bottom: 16px; }
-
-/* PLANO */
-.stExpander {
-    background: white !important;
-    border: 1px solid rgba(0,0,0,0.07) !important;
-    border-radius: 10px !important;
-    margin-bottom: 8px !important;
-}
-.stExpander summary {
-    font-size: 13px !important;
-    font-weight: 500 !important;
-}
-div[data-testid="stFileUploader"] {
-    background: white;
-    border-radius: 10px;
-    padding: 4px;
-}
+    [data-testid="stAppViewContainer"] > .main { padding: 0 !important; }
+    [data-testid="stHeader"] { display: none; }
+    .block-container { padding: 0 !important; max-width: 100% !important; }
+    section[data-testid="stSidebar"] { display: none !important; }
+    [data-testid="collapsedControl"] { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── HELPERS ────────────────────────────────────────────────────────────────────
+# Upload expander no topo
+with st.expander("📂 Atualizar arquivos CSV", expanded=False):
+    st.caption("Substitua qualquer arquivo para atualizar a análise. Deixe em branco para usar os dados padrão do repositório.")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        up_semanas    = st.file_uploader("Semanas anteriores",  type="csv", key="up_sem")
+        up_s16        = st.file_uploader("Semana 16-22/03",     type="csv", key="up_s16")
+    with col2:
+        up_s23        = st.file_uploader("Semana 23-29/03",     type="csv", key="up_s23")
+        up_pascoa     = st.file_uploader("Feriado Pascoa",      type="csv", key="up_pas")
+    with col3:
+        up_tiradentes = st.file_uploader("Feriado Tiradentes",  type="csv", key="up_tir")
+
+
+
+# ── LOAD DATA ─────────────────────────────────────────────────────────────────
 def load_file(upload, default_name):
     if upload:
         return pd.read_csv(upload)
@@ -174,374 +47,369 @@ def load_file(upload, default_name):
             return pd.read_csv(path)
     return None
 
-def variation(atual, ref):
-    if not ref or ref == 0: return None
-    return ((atual - ref) / ref) * 100
+df_semanas    = load_file(up_semanas,    "semanas_anteriores.csv")
+df_s16        = load_file(up_s16,        "semana_16_a_22.csv")
+df_s23        = load_file(up_s23,        "semana_23_a_29.csv")
+df_pascoa     = load_file(up_pascoa,     "feriado_pascoa.csv")
+df_tiradentes = load_file(up_tiradentes, "feriado_tiradentes.csv")
 
-def classify(pct):
-    if pct is None: return None
-    if pct >= 15: return "alto"
-    if pct >= 10: return "mod"
-    if pct >= 5:  return "leve"
-    if pct > 0:   return "pos"
-    return "neg"
+# Timestamp de atualização
+any_upload = any([up_semanas, up_s16, up_s23, up_pascoa, up_tiradentes])
 
-def badge_html(cls):
-    labels = {"alto":"Muito relevante","mod":"Moderado","leve":"Leve","pos":"Leve positivo","neg":"Sem repasse"}
-    css    = {"alto":"badge-alto","mod":"badge-mod","leve":"badge-leve","pos":"badge-leve","neg":"badge-neg"}
-    return f'<span class="{css.get(cls,"badge-neg")}">{labels.get(cls,"–")}</span>'
-
-def fmt_var(pct):
-    if pct is None: return "–"
-    return f"{'+' if pct>0 else ''}{pct:.1f}%"
-
-def fmt_trecho(t):
-    return " › ".join([p.capitalize() for p in t.split("-") if len(p) > 2])
-
-def enrich(df):
-    d = df.copy()
-    d["pct"] = d.apply(lambda r: variation(r.media_preco_atual, r.media_preco_referencia), axis=1)
-    d["cls"] = d["pct"].apply(classify)
-    d["trecho_fmt"] = d["trecho_unico"].apply(fmt_trecho)
-    return d
-
-def color_for(cls):
-    return {"alto":"#C8402A","mod":"#B07A10","leve":"#2E6B40","pos":"#2E6B40","neg":"#9C9A93"}.get(cls,"#9C9A93")
-
-def plotly_bar(df_sorted, x_col="pct", y_col="trecho_fmt", height=None):
-    h = height or max(300, len(df_sorted) * 38)
-    colors = [color_for(c) for c in df_sorted["cls"]]
-    fig = go.Figure(go.Bar(
-        x=df_sorted[x_col].round(1), y=df_sorted[y_col],
-        orientation="h", marker_color=colors,
-        text=[f"{v:+.1f}%" for v in df_sorted[x_col]],
-        textposition="outside", cliponaxis=False,
-    ))
-    fig.update_layout(
-        height=h, margin=dict(l=0,r=60,t=10,b=10),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(showgrid=True, gridcolor="rgba(0,0,0,0.05)",
-                   ticksuffix="%", zeroline=True, zerolinecolor="rgba(0,0,0,0.15)"),
-        yaxis=dict(showgrid=False),
-        font=dict(family="DM Sans, sans-serif", size=12),
-        showlegend=False,
-    )
-    return fig
-
-def filter_df(df, f):
-    if f == "Todos":           return df
-    if f == "Com repasse":     return df[df["pct"] >= 5]
-    if f == "Muito relevante": return df[df["cls"] == "alto"]
-    if f == "Moderado":        return df[df["cls"] == "mod"]
-    if f == "Leve":            return df[df["cls"].isin(["leve","pos"])]
-    return df
-
-def render_table(df, cols):
-    show = df[list(cols.keys())].copy()
-    show.columns = list(cols.values())
-    st.dataframe(show, use_container_width=True, hide_index=True)
-
-def filter_chips(key):
-    opts = ["Todos","Com repasse","Muito relevante","Moderado","Leve"]
-    return st.radio("Filtrar:", opts, horizontal=True, key=f"f_{key}", label_visibility="collapsed")
-
-# ── UPLOAD ─────────────────────────────────────────────────────────────────────
-with st.expander("📂 Atualizar arquivos CSV", expanded=False):
-    st.caption("Substitua qualquer arquivo para atualizar a análise instantaneamente.")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        up_sem = st.file_uploader("Semanas anteriores", type="csv", key="up_sem")
-        up_s16 = st.file_uploader("Semana 16–22/03",   type="csv", key="up_s16")
-    with c2:
-        up_s23 = st.file_uploader("Semana 23–29/03",   type="csv", key="up_s23")
-        up_pas = st.file_uploader("Feriado Páscoa",    type="csv", key="up_pas")
-    with c3:
-        up_tir = st.file_uploader("Feriado Tiradentes",type="csv", key="up_tir")
-
-# ── LOAD ───────────────────────────────────────────────────────────────────────
-df_sem = load_file(up_sem, "semanas_anteriores.csv")
-df_s16 = load_file(up_s16, "semana_16_a_22.csv")
-df_s23 = load_file(up_s23, "semana_23_a_29.csv")
-df_pas = load_file(up_pas, "feriado_pascoa.csv")
-df_tir = load_file(up_tir, "feriado_tiradentes.csv")
-
-# ── TIMESTAMP ──────────────────────────────────────────────────────────────────
-any_upload = any([up_sem, up_s16, up_s23, up_pas, up_tir])
 if any_upload:
     now_sp = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M")
     update_label = f"Importado em {now_sp} · via upload manual"
 else:
+    # Busca data do último commit dos CSVs via API do GitHub
     try:
+        import urllib.request, json
+        # Detecta repo automaticamente a partir da variável de ambiente do Streamlit Cloud
+        repo = os.environ.get("STREAMLIT_SHARING_MODE", "")
+        # Tenta pegar do git log local (funciona no Streamlit Cloud)
         import subprocess
-        r = subprocess.run(["git","log","-1","--format=%ci","--","semanas_anteriores.csv","data/semanas_anteriores.csv"],
-                           capture_output=True, text=True, cwd=".")
-        if r.stdout.strip():
-            gd = datetime.fromisoformat(r.stdout.strip()).astimezone(ZoneInfo("America/Sao_Paulo"))
-            update_label = f"Atualizado em {gd.strftime('%d/%m/%Y %H:%M')} · via Databricks"
+        result = subprocess.run(
+            ["git", "log", "-1", "--format=%ci", "--", "semanas_anteriores.csv", "data/semanas_anteriores.csv"],
+            capture_output=True, text=True, cwd="."
+        )
+        if result.stdout.strip():
+            from datetime import datetime as dt
+            git_date = dt.fromisoformat(result.stdout.strip())
+            git_date_sp = git_date.astimezone(ZoneInfo("America/Sao_Paulo"))
+            update_label = f"Atualizado em {git_date_sp.strftime('%d/%m/%Y %H:%M')} · via databricks"
         else:
-            update_label = "via Databricks"
-    except:
-        update_label = "via Databricks"
+            update_label = "via databricks"
+    except Exception:
+        update_label = "via databricks"
 
-# ── NAV BAR ────────────────────────────────────────────────────────────────────
-st.markdown(f"""
-<div class="nav-bar">
-  <span class="nav-title">Monitoramento de Repasse do Diesel</span>
-  <span class="nav-badge">
-    <span class="nav-dot"></span>
-    {update_label}
-  </span>
-</div>
-""", unsafe_allow_html=True)
-
-# ── TABS ───────────────────────────────────────────────────────────────────────
-tabs = st.tabs(["Resumo executivo","Semanas anteriores","16–22/03","23–29/03","Páscoa","Tiradentes","📋 Plano de ação"])
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 0 — RESUMO EXECUTIVO
-# ══════════════════════════════════════════════════════════════════════════════
-with tabs[0]:
-    loaded = {k:v for k,v in {"Sem. ant.":df_sem,"16–22/03":df_s16,"23–29/03":df_s23,"Páscoa":df_pas,"Tiradentes":df_tir}.items() if v is not None}
-    if not loaded:
-        st.info("Carregue os arquivos CSV para gerar a análise.")
-    else:
-        all_records = []
-        period_stats = []
-        for name, df in loaded.items():
-            e = enrich(df)
-            all_records.append(e)
-            avg = e["pct"].mean()
-            period_stats.append({"Período": name, "avg": avg, "cls": classify(avg)})
-        all_df = pd.concat(all_records, ignore_index=True)
-
-        wr = all_df[all_df["pct"] >= 5]
-        ac = (all_df["cls"] == "alto").sum()
-        mc = (all_df["cls"] == "mod").sum()
-        ag = all_df["pct"].mean()
-        pr = len(wr) / len(all_df) * 100
-
-        verdict = ("Sinais expressivos de repasse identificados — múltiplos trechos com variações acima de 15%." if ac > 3
-                   else "Repasse parcial em andamento — parte significativa dos trechos já apresenta elevações tarifárias." if pr > 40
-                   else "Repasse limitado até o momento — maioria dos trechos ainda sem variação significativa.")
-
-        st.markdown(f"""
-        <div class="verdict-card">
-          <div class="verdict-label">Diagnóstico — {datetime.now().strftime('%d/%m/%Y')}</div>
-          <div class="verdict-title">{verdict}</div>
-          <div class="verdict-body">De {len(all_df)} observações em {len(loaded)} período(s), {len(wr)} ({pr:.0f}%) apresentam variação ≥5%. Variação média geral: {ag:+.1f}%.</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        k1,k2,k3,k4 = st.columns(4)
-        k1.metric("Variação média geral", f"{ag:+.1f}%", "sobre a semana-base")
-        k2.metric("Com repasse ≥5%", f"{pr:.0f}%", f"{len(wr)} de {len(all_df)}")
-        k3.metric("Muito relevante ≥15%", str(ac), "registros")
-        k4.metric("Moderado 10–15%", str(mc), "registros")
-
-        st.markdown("---")
-        st.markdown('<p class="section-title">Variação média por período</p>', unsafe_allow_html=True)
-
-        ps_df = pd.DataFrame(period_stats)
-        fig = go.Figure(go.Bar(
-            x=ps_df["Período"], y=ps_df["avg"].round(1),
-            marker_color=[color_for(c) for c in ps_df["cls"]],
-            text=[f"{v:+.1f}%" for v in ps_df["avg"]], textposition="outside",
-        ))
-        fig.update_layout(height=260, margin=dict(l=0,r=0,t=10,b=10),
-                          paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                          yaxis=dict(ticksuffix="%", showgrid=True, gridcolor="rgba(0,0,0,0.05)"),
-                          xaxis=dict(showgrid=False), showlegend=False,
-                          font=dict(family="DM Sans, sans-serif", size=12))
-        st.plotly_chart(fig, use_container_width=True)
-
-        top = (all_df[all_df["pct"] >= 5].groupby("trecho_unico")
-               .agg(pct=("pct","mean"), trecho_fmt=("trecho_fmt","first"))
-               .reset_index().sort_values("pct", ascending=False).head(8))
-        if not top.empty:
-            st.markdown("---")
-            st.markdown('<p class="section-title">Trechos com maior sinal de repasse</p>', unsafe_allow_html=True)
-            top["cls"] = top["pct"].apply(classify)
-            top["Variação"] = top["pct"].apply(lambda v: f"{v:+.1f}%")
-            top["Classificação"] = top["cls"].apply(lambda c: {"alto":"Muito relevante","mod":"Moderado","leve":"Leve"}.get(c,"–"))
-            st.dataframe(top[["trecho_fmt","Variação","Classificação"]].rename(columns={"trecho_fmt":"Trecho"}),
-                        use_container_width=True, hide_index=True)
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 1 — SEMANAS ANTERIORES
-# ══════════════════════════════════════════════════════════════════════════════
-with tabs[1]:
-    if df_sem is None:
-        st.info("Carregue o arquivo 'Semanas anteriores'.")
-    else:
-        e = enrich(df_sem)
-        st.markdown('<p class="section-title">Variação percentual por trecho</p>', unsafe_allow_html=True)
-        st.markdown('<p class="section-desc">Comparação com a semana-base de 23/02–01/03/2026.</p>', unsafe_allow_html=True)
-        st.plotly_chart(plotly_bar(e.sort_values("pct", ascending=True)), use_container_width=True)
-        st.markdown("---")
-        f = filter_chips("sem")
-        show = filter_df(e, f).sort_values("pct", ascending=False)
-        show["Variação"] = show["pct"].apply(fmt_var)
-        show["Preço ref."]  = show["media_preco_referencia"].apply(lambda v: f"R$ {v:.2f}")
-        show["Preço atual"] = show["media_preco_atual"].apply(lambda v: f"R$ {v:.2f}")
-        show["Classificação"] = show["cls"].apply(lambda c: {"alto":"Muito relevante","mod":"Moderado","leve":"Leve","pos":"Leve positivo","neg":"Sem repasse"}.get(c,"–"))
-        st.dataframe(show[["trecho_fmt","Preço ref.","Preço atual","Variação","Classificação"]].rename(columns={"trecho_fmt":"Trecho"}),
-                    use_container_width=True, hide_index=True)
-
-# ══════════════════════════════════════════════════════════════════════════════
-# HELPER — SEMANA DETALHE
-# ══════════════════════════════════════════════════════════════════════════════
-def render_semana_detalhe(df, title, tab_key):
+def df_to_json(df):
     if df is None:
-        st.info(f"Carregue o arquivo '{title}'.")
-        return
-    e = enrich(df)
-    summary = (e.groupby("trecho_unico")
-                .agg(pct=("pct","mean"), trecho_fmt=("trecho_fmt","first"),
-                     media_preco_atual=("media_preco_atual","mean"),
-                     media_preco_referencia=("media_preco_referencia","mean"))
-                .reset_index())
-    summary["cls"] = summary["pct"].apply(classify)
+        return "null"
+    return df.to_json(orient="records")
 
-    st.markdown(f'<p class="section-title">Semana {title}</p>', unsafe_allow_html=True)
-    st.markdown('<p class="section-desc">Preços por dia e antecedência vs. semana-base.</p>', unsafe_allow_html=True)
-    st.plotly_chart(plotly_bar(summary.sort_values("pct", ascending=True)), use_container_width=True)
-    st.markdown("---")
-    f = filter_chips(tab_key)
-    show = filter_df(summary, f).sort_values("pct", ascending=False)
-    show["Variação"]  = show["pct"].apply(fmt_var)
-    show["Preço ref."]  = show["media_preco_referencia"].apply(lambda v: f"R$ {v:.2f}")
-    show["Preço médio"] = show["media_preco_atual"].apply(lambda v: f"R$ {v:.2f}")
-    show["Classificação"] = show["cls"].apply(lambda c: {"alto":"Muito relevante","mod":"Moderado","leve":"Leve","pos":"Leve positivo","neg":"Sem repasse"}.get(c,"–"))
-    st.dataframe(show[["trecho_fmt","Preço ref.","Preço médio","Variação","Classificação"]].rename(columns={"trecho_fmt":"Trecho"}),
-                use_container_width=True, hide_index=True)
-    with st.expander("Ver detalhamento por dia e antecedência"):
-        det = filter_df(e, f).sort_values(["trecho_unico","data"])
-        det["Variação"]  = det["pct"].apply(fmt_var)
-        det["Preço ref."]  = det["media_preco_referencia"].apply(lambda v: f"R$ {v:.2f}")
-        det["Preço atual"] = det["media_preco_atual"].apply(lambda v: f"R$ {v:.2f}")
-        det["Antec."] = det["antecedencia"].apply(lambda v: f"D{int(v)}" if pd.notna(v) else "–")
-        det["Classificação"] = det["cls"].apply(lambda c: {"alto":"Muito relevante","mod":"Moderado","leve":"Leve","pos":"Leve positivo","neg":"Sem repasse"}.get(c,"–"))
-        st.dataframe(det[["trecho_fmt","data","Antec.","Preço ref.","Preço atual","Variação","Classificação"]]
-                    .rename(columns={"trecho_fmt":"Trecho","data":"Data"}),
-                    use_container_width=True, hide_index=True)
+data_js = f"""
+const INJECTED = {{
+  semanas:    {df_to_json(df_semanas)},
+  s16:        {df_to_json(df_s16)},
+  s23:        {df_to_json(df_s23)},
+  pascoa:     {df_to_json(df_pascoa)},
+  tiradentes: {df_to_json(df_tiradentes)},
+}};
+const UPDATE_LABEL = "{update_label}";
+"""
 
-with tabs[2]: render_semana_detalhe(df_s16, "16 a 22 de março", "s16")
-with tabs[3]: render_semana_detalhe(df_s23, "23 a 29 de março", "s23")
-
-# ══════════════════════════════════════════════════════════════════════════════
-# HELPER — FERIADO
-# ══════════════════════════════════════════════════════════════════════════════
-def render_feriado(df, nome, dias, ref_nome, tab_key):
-    if df is None:
-        st.info(f"Carregue o arquivo '{nome}'.")
-        return
-    e = enrich(df)
-    e["Sentido"] = e["data"].apply(lambda d: "Ida" if ("02" in str(d) or "17" in str(d)) else "Volta")
-
-    st.markdown(f'<p class="section-title">Feriado de {nome}</p>', unsafe_allow_html=True)
-    st.markdown(f'<p class="section-desc">Dias de maior movimento: {dias}. Referência: {ref_nome}.</p>', unsafe_allow_html=True)
-
-    e["trecho_sentido"] = e["trecho_fmt"] + " (" + e["Sentido"] + ")"
-    st.plotly_chart(plotly_bar(e.sort_values("pct", ascending=True), y_col="trecho_sentido"), use_container_width=True)
-    st.markdown("---")
-    f = filter_chips(tab_key)
-    show = filter_df(e, f).sort_values("pct", ascending=False)
-    show["Variação"]       = show["pct"].apply(fmt_var)
-    show["Ref. (Carnaval)"]= show["media_preco_referencia"].apply(lambda v: f"R$ {v:.2f}")
-    show["Preço atual"]    = show["media_preco_atual"].apply(lambda v: f"R$ {v:.2f}")
-    show["Antec."]         = show["antecedencia"].apply(lambda v: f"D{int(v)}" if pd.notna(v) else "–")
-    show["Classificação"]  = show["cls"].apply(lambda c: {"alto":"Muito relevante","mod":"Moderado","leve":"Leve","pos":"Leve positivo","neg":"Sem repasse"}.get(c,"–"))
-    st.dataframe(show[["trecho_fmt","data","Sentido","Antec.","Ref. (Carnaval)","Preço atual","Variação","Classificação"]]
-                .rename(columns={"trecho_fmt":"Trecho","data":"Data"}),
-                use_container_width=True, hide_index=True)
-
-with tabs[4]: render_feriado(df_pas, "Páscoa",     "02/04 (ida) e 05/04 (volta)", "Carnaval", "pas")
-with tabs[5]: render_feriado(df_tir, "Tiradentes", "17/04 (ida) e 21/04 (volta)", "Carnaval", "tir")
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 6 — PLANO DE AÇÃO
-# ══════════════════════════════════════════════════════════════════════════════
-with tabs[6]:
-    def get_criticos(*dfs):
-        records = []
-        for df in dfs:
-            if df is None: continue
-            d = df.copy()
-            d["pct"] = (d["media_preco_atual"] - d["media_preco_referencia"]) / d["media_preco_referencia"] * 100
-            records.append(d[["trecho_unico","pct"]])
-        if not records: return pd.DataFrame()
-        combined = pd.concat(records)
-        return (combined[combined["pct"] >= 5]
-                .groupby("trecho_unico")["pct"].mean()
-                .reset_index()
-                .sort_values("pct", ascending=False)
-                .head(10))
-
-    criticos = get_criticos(df_sem, df_s16, df_s23, df_pas, df_tir)
-
-    st.markdown('<p class="section-title">Plano de ação — trechos críticos</p>', unsafe_allow_html=True)
-    st.markdown('<p class="section-desc">Top 10 trechos com maior sinal de repasse (variação média ≥5%). Preencha e salve cada linha.</p>', unsafe_allow_html=True)
-
-    if criticos.empty:
-        st.info("Carregue os arquivos CSV para gerar o plano.")
-    else:
-        if "plano" not in st.session_state:
-            st.session_state.plano = {}
-
-        STATUS = ["Aberto", "Em andamento", "Monitorando", "Concluído"]
-        EMOJI  = {"Aberto":"🔴","Em andamento":"🟡","Monitorando":"🔵","Concluído":"🟢"}
-
-        for _, row in criticos.iterrows():
-            t   = row["trecho_unico"]
-            pct = row["pct"]
-            p   = st.session_state.plano.get(t, {})
-            lbl = "Muito relevante" if pct >= 15 else "Moderado" if pct >= 10 else "Leve"
-            ico = EMOJI.get(p.get("status","Aberto"), "🔴")
-
-            with st.expander(f"{ico}  {fmt_trecho(t)}  ·  {pct:+.1f}%  ·  {lbl}", expanded=False):
-                c1, c2, c3 = st.columns([2, 1.5, 1.5])
-                with c1:
-                    resp = st.text_input("Responsável", value=p.get("responsavel",""), key=f"r_{t}")
-                with c2:
-                    prazo_val = None
-                    if p.get("prazo"):
-                        try: prazo_val = date.fromisoformat(p["prazo"])
-                        except: pass
-                    prazo = st.date_input("Prazo", value=prazo_val, key=f"d_{t}")
-                with c3:
-                    idx = STATUS.index(p.get("status","Aberto"))
-                    status = st.selectbox("Status", STATUS, index=idx, key=f"s_{t}")
-                acao = st.text_area("Ação / observações", value=p.get("acao",""), key=f"a_{t}", height=75)
-                if st.button("Salvar", key=f"btn_{t}", type="primary"):
-                    st.session_state.plano[t] = {
-                        "responsavel": resp,
-                        "prazo": prazo.isoformat() if prazo else "",
-                        "status": status,
-                        "acao": acao,
-                    }
-                    st.success("Salvo!", icon="✅")
-
-        st.markdown("---")
-        st.markdown("#### Resumo do plano")
-        rows = []
-        for _, row in criticos.iterrows():
-            t = row["trecho_unico"]
-            p = st.session_state.plano.get(t, {})
-            rows.append({
-                "Trecho":      fmt_trecho(t),
-                "Variação":    f"{row['pct']:+.1f}%",
-                "Responsável": p.get("responsavel","—"),
-                "Prazo":       p.get("prazo","—"),
-                "Status":      p.get("status","Aberto"),
-                "Ação":        p.get("acao","—"),
-            })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-        csv_bytes = pd.DataFrame(rows).to_csv(index=False).encode("utf-8")
-        st.download_button("⬇️ Exportar plano como CSV", csv_bytes, "plano_acao_diesel.csv", "text/csv")
-
-# ── FOOTER ──────────────────────────────────────────────────────────────────
-st.markdown("""
-<div style="text-align:center;padding:20px;font-size:12px;color:#9C9A93;border-top:1px solid rgba(0,0,0,0.07);background:white;margin-top:32px">
-  Referência base: semana 23/02–01/03/2026 · Reajuste do diesel analisado pós-16/03/2026
+# ── HTML DASHBOARD ────────────────────────────────────────────────────────────
+html = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
+  :root {{
+    --bg:#F7F5F0;--surface:#fff;--surface2:#F0EDE6;
+    --border:rgba(0,0,0,.08);--border-strong:rgba(0,0,0,.15);
+    --text:#1A1A18;--muted:#6B6963;--faint:#9C9A93;
+    --accent:#C8402A;--accent-l:#FAE8E4;
+    --warn:#B07A10;--warn-l:#FDF3DC;
+    --ok:#2E6B40;--ok-l:#E3F2E9;
+    --neutral:#4A4A46;--neutral-l:#EDECE9;
+    --r:10px;--rl:16px;
+  }}
+  *{{box-sizing:border-box;margin:0;padding:0}}
+  body{{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6}}
+  .header{{background:var(--surface);border-bottom:1px solid var(--border);padding:22px 28px 18px}}
+  .title{{font-family:'DM Serif Display',serif;font-size:22px;font-weight:400;letter-spacing:-.3px}}
+  .subtitle{{font-size:13px;color:var(--muted);margin-top:3px}}
+  .tabs{{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;display:flex;overflow-x:auto}}
+  .tab{{padding:12px 16px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s}}
+  .tab:hover{{color:var(--text)}}
+  .tab.active{{color:var(--text);border-bottom-color:var(--accent)}}
+  .main{{padding:24px 28px}}
+  .panel{{display:none}}.panel.active{{display:block}}
+  .verdict{{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:var(--rl);padding:20px 24px;margin-bottom:18px}}
+  .verdict-lbl{{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:7px}}
+  .verdict-title{{font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:9px;line-height:1.35}}
+  .verdict-body{{font-size:13px;color:var(--muted);line-height:1.7}}
+  .kpi-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:18px}}
+  .kpi{{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}}
+  .kpi-lbl{{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}}
+  .kpi-val{{font-size:21px;font-weight:600;line-height:1;margin-bottom:3px}}
+  .kpi-desc{{font-size:12px;color:var(--muted)}}
+  .kpi.up .kpi-val{{color:var(--accent)}}.kpi.warn .kpi-val{{color:var(--warn)}}.kpi.ok .kpi-val{{color:var(--ok)}}
+  .ig{{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:18px}}
+  .ic{{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}}
+  .ic h4{{font-size:13px;font-weight:600;margin-bottom:6px}}
+  .ic p{{font-size:13px;color:var(--muted);line-height:1.6}}
+  .cc{{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:20px;margin-bottom:16px}}
+  .cc h3{{font-size:14px;font-weight:600;margin-bottom:3px}}
+  .cdesc{{font-size:12px;color:var(--muted);margin-bottom:16px}}
+  .cwrap{{position:relative;width:100%}}
+  .tc{{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:16px}}
+  .th2{{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}}
+  .th2 h3{{font-size:14px;font-weight:600}}
+  .fr{{display:flex;gap:5px;flex-wrap:wrap}}
+  .fc{{padding:3px 10px;border-radius:20px;border:1px solid var(--border-strong);font-size:12px;cursor:pointer;transition:all .15s;background:var(--surface);color:var(--muted);font-family:'DM Sans',sans-serif}}
+  .fc:hover{{background:var(--surface2)}}
+  .fc.active{{background:var(--text);color:#fff;border-color:var(--text)}}
+  .fc.ca{{background:var(--accent-l);color:var(--accent);border-color:rgba(200,64,42,.2)}}
+  .fc.ca.active{{background:var(--accent);color:#fff}}
+  .fc.cm{{background:var(--warn-l);color:var(--warn);border-color:rgba(176,122,16,.2)}}
+  .fc.cm.active{{background:var(--warn);color:#fff}}
+  .fc.cl{{background:var(--ok-l);color:var(--ok);border-color:rgba(46,107,64,.2)}}
+  .fc.cl.active{{background:var(--ok);color:#fff}}
+  table{{width:100%;border-collapse:collapse;font-size:13px}}
+  thead th{{padding:9px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);background:var(--surface2);border-bottom:1px solid var(--border)}}
+  tbody tr{{border-bottom:1px solid var(--border);transition:background .1s}}
+  tbody tr:last-child{{border-bottom:none}}
+  tbody tr:hover{{background:var(--surface2)}}
+  tbody td{{padding:9px 14px}}
+  .tt{{font-weight:500}}
+  .badge{{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}}
+  .ba{{background:var(--accent-l);color:var(--accent)}}
+  .bm{{background:var(--warn-l);color:var(--warn)}}
+  .bl{{background:var(--ok-l);color:var(--ok)}}
+  .bn{{background:var(--neutral-l);color:var(--neutral)}}
+  .vu{{color:var(--accent);font-weight:600}}.vd{{color:var(--ok)}}.vf{{color:var(--muted)}}
+  .stitle{{font-family:'DM Serif Display',serif;font-size:17px;font-weight:400;margin-bottom:5px;margin-top:24px}}
+  .stitle:first-child{{margin-top:0}}
+  .sdesc{{font-size:13px;color:var(--muted);margin-bottom:16px}}
+  .empty{{text-align:center;padding:50px 20px;color:var(--muted)}}
+  .empty h3{{font-size:15px;font-weight:500;margin-bottom:7px}}
+  footer{{text-align:center;padding:18px;font-size:12px;color:var(--faint);border-top:1px solid var(--border);background:var(--surface);margin-top:28px}}
+</style>
+</head>
+<body>
+<div class="header">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div>
+      <div class="title">Monitoramento de Repasse do Diesel</div>
+      <div class="subtitle">Transporte rodoviário de passageiros — Comparativo pós-reajuste</div>
+    </div>
+    <div id="update-badge" style="display:flex;align-items:center;gap:6px;background:#E3F2E9;border:1px solid rgba(46,107,64,.2);border-radius:20px;padding:5px 12px;font-size:12px;color:#2E6B40;white-space:nowrap;margin-top:4px">
+      <span style="width:7px;height:7px;border-radius:50%;background:#2E6B40;display:inline-block"></span>
+      <span id="update-text">carregando...</span>
+    </div>
+  </div>
 </div>
-""", unsafe_allow_html=True)
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('resumo',this)">Resumo executivo</div>
+  <div class="tab" onclick="switchTab('semanas',this)">Semanas anteriores</div>
+  <div class="tab" onclick="switchTab('s16',this)">16–22/03</div>
+  <div class="tab" onclick="switchTab('s23',this)">23–29/03</div>
+  <div class="tab" onclick="switchTab('pascoa',this)">Páscoa</div>
+  <div class="tab" onclick="switchTab('tiradentes',this)">Tiradentes</div>
+</div>
+<div class="main">
+  <div id="panel-resumo" class="panel active"></div>
+  <div id="panel-semanas" class="panel"></div>
+  <div id="panel-s16" class="panel"></div>
+  <div id="panel-s23" class="panel"></div>
+  <div id="panel-pascoa" class="panel"></div>
+  <div id="panel-tiradentes" class="panel"></div>
+</div>
+<footer>Referência base: semana 23/02–01/03/2026 · Reajuste do diesel analisado pós-16/03/2026</footer>
+
+<script>
+{data_js}
+const CI={{}};
+let AF={{semanas:'todos',s16:'todos',s23:'todos',pascoa:'todos',tiradentes:'todos'}};
+const CL={{alto:'#C8402A',mod:'#B07A10',leve:'#2E6B40',pos:'#2E6B40',neg:'#9C9A93'}};
+const LL={{alto:'Muito relevante',mod:'Moderado',leve:'Leve',pos:'Leve positivo',neg:'Sem repasse'}};
+
+function vari(a,r){{return(!r||r==0)?null:((a-r)/r)*100}}
+function cls(p){{if(p===null)return null;if(p>=15)return'alto';if(p>=10)return'mod';if(p>=5)return'leve';if(p>0)return'pos';return'neg'}}
+function badge(c){{const m={{alto:'ba',mod:'bm',leve:'bl',pos:'bl',neg:'bn'}};return`<span class="badge ${{m[c]||'bn'}}">${{LL[c]||'–'}}</span>`}}
+function fv(p){{if(p===null)return'<span class="vf">–</span>';const s=p>0?'+':'';return`<span class="${{p>0?'vu':p<0?'vd':'vf'}}">${{s}}${{p.toFixed(1)}}%</span>`}}
+function fb(v){{return'R$ '+parseFloat(v).toFixed(2).replace('.',',')}}
+function ts(t){{return t.split('-').filter(p=>p.length>2).map(p=>p[0].toUpperCase()+p.slice(1)).join(' › ')}}
+function enrich(rows){{return rows.map(r=>{{const p=vari(r.media_preco_atual,r.media_preco_referencia);return{{...r,pct:p,cls:cls(p),tf:ts(r.trecho_unico)}}}})}}
+function filt(rows,f){{if(f==='todos')return rows;if(f==='repasse')return rows.filter(r=>r.pct>=5);return rows.filter(r=>r.cls===f)}}
+function chips(key,f){{return`<div class="fr">
+  <button class="fc ${{f==='todos'?'active':''}}" onclick="sf('${{key}}','todos',this)">Todos</button>
+  <button class="fc ca ${{f==='alto'?'active':''}}" onclick="sf('${{key}}','alto',this)">Muito relevante ≥15%</button>
+  <button class="fc cm ${{f==='mod'?'active':''}}" onclick="sf('${{key}}','mod',this)">Moderado 10–15%</button>
+  <button class="fc cl ${{f==='leve'?'active':''}}" onclick="sf('${{key}}','leve',this)">Leve 5–10%</button>
+  <button class="fc ${{f==='repasse'?'active':''}}" onclick="sf('${{key}}','repasse',this)">Com repasse ≥5%</button>
+</div>`}}
+function dc(id){{if(CI[id]){{CI[id].destroy();delete CI[id]}}}}
+function bar(id,labels,data,colors,h){{
+  dc(id);
+  setTimeout(()=>{{
+    const ctx=document.getElementById(id);if(!ctx)return;
+    CI[id]=new Chart(ctx,{{type:'bar',
+      data:{{labels,datasets:[{{data,backgroundColor:colors,borderRadius:4,borderSkipped:false}}]}},
+      options:{{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+        plugins:{{legend:{{display:false}},tooltip:{{callbacks:{{label:c=>`${{c.raw>0?'+':''}}${{c.raw.toFixed(1)}}%`}}}}}},
+        scales:{{
+          x:{{grid:{{color:'rgba(0,0,0,0.05)'}},ticks:{{callback:v=>`${{v>0?'+':''}}${{v.toFixed(0)}}%`,font:{{size:11}}}}}},
+          y:{{grid:{{display:false}},ticks:{{font:{{size:11}},color:'#6B6963'}}}}
+        }}
+      }}
+    }});
+  }},50);
+}}
+function switchTab(key,el){{
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('panel-'+key).classList.add('active');
+}}
+function sf(key,val,el){{
+  AF[key]=val;
+  el.closest('.fr').querySelectorAll('.fc').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  rp(key);
+}}
+function rp(key){{
+  if(key==='semanas')rSem();
+  else if(key==='s16')rDet('s16','16 a 22 de março');
+  else if(key==='s23')rDet('s23','23 a 29 de março');
+  else if(key==='pascoa')rFer('pascoa','Páscoa','02/04 (ida) e 05/04 (volta)','Carnaval');
+  else if(key==='tiradentes')rFer('tiradentes','Tiradentes','17/04 (ida) e 21/04 (volta)','Carnaval');
+}}
+
+function rExec(){{
+  const keys=['semanas','s16','s23','pascoa','tiradentes'];
+  const all=[];const ps=[];
+  const plabels={{semanas:'Sem. ant.',s16:'16–22/03',s23:'23–29/03',pascoa:'Páscoa',tiradentes:'Tiradentes'}};
+  keys.forEach(k=>{{
+    if(!INJECTED[k])return;
+    const e=enrich(INJECTED[k]);
+    e.forEach(r=>all.push(r));
+    const avg=e.reduce((s,r)=>s+(r.pct||0),0)/e.length;
+    ps.push({{label:plabels[k],avg,cls:cls(avg)}});
+  }});
+  if(!all.length){{
+    document.getElementById('panel-resumo').innerHTML='<div class="empty"><h3>Nenhum dado carregado</h3><p>Use a barra lateral para fazer upload dos CSVs.</p></div>';return;
+  }}
+  const wr=all.filter(r=>r.pct>=5);
+  const ac=all.filter(r=>r.cls==='alto').length;
+  const mc=all.filter(r=>r.cls==='mod').length;
+  const ag=all.reduce((s,r)=>s+(r.pct||0),0)/all.length;
+  const pr=(wr.length/all.length*100).toFixed(0);
+  const verdict=ac>3?'Sinais expressivos de repasse identificados — múltiplos trechos com variações acima de 15%.':
+    wr.length>all.length*.4?'Repasse parcial em andamento — parte significativa dos trechos já apresenta elevações tarifárias.':
+    'Repasse limitado até o momento — maioria dos trechos ainda sem variação significativa.';
+  const byT={{}};
+  all.filter(r=>r.pct>=5).forEach(r=>{{if(!byT[r.trecho_unico])byT[r.trecho_unico]=[];byT[r.trecho_unico].push(r.pct)}});
+  const top=Object.entries(byT).map(([t,pcts])=>{{const a=pcts.reduce((s,v)=>s+v,0)/pcts.length;return{{t,a,c:cls(a)}}}})
+    .sort((a,b)=>b.a-a.a).slice(0,6);
+  const hi=[...all].sort((a,b)=>b.pct-a.pct)[0];
+  const lo=[...all].sort((a,b)=>a.pct-b.pct)[0];
+
+  document.getElementById('panel-resumo').innerHTML=`
+    <div class="verdict">
+      <div class="verdict-lbl">Diagnóstico — ${{new Date().toLocaleDateString('pt-BR')}}</div>
+      <div class="verdict-title">${{verdict}}</div>
+      <div class="verdict-body">De ${{all.length}} observações em ${{ps.length}} período(s), ${{wr.length}} (${{pr}}%) apresentam variação ≥5%. Variação média geral: ${{ag>0?'+':''}}${{ag.toFixed(1)}}%.</div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi ${{ag>=10?'up':ag>=5?'warn':'ok'}}"><div class="kpi-lbl">Variação média geral</div><div class="kpi-val">${{ag>0?'+':''}}${{ag.toFixed(1)}}%</div><div class="kpi-desc">Sobre a semana de referência</div></div>
+      <div class="kpi up"><div class="kpi-lbl">Com repasse ≥5%</div><div class="kpi-val">${{pr}}%</div><div class="kpi-desc">${{wr.length}} de ${{all.length}} registros</div></div>
+      <div class="kpi up"><div class="kpi-lbl">Muito relevante ≥15%</div><div class="kpi-val">${{ac}}</div><div class="kpi-desc">Registros com alta variação</div></div>
+      <div class="kpi warn"><div class="kpi-lbl">Moderado 10–15%</div><div class="kpi-val">${{mc}}</div><div class="kpi-desc">Registros com var. moderada</div></div>
+    </div>
+    <div class="cc">
+      <h3>Variação média por período</h3><p class="cdesc">Média de todos os trechos em cada período carregado</p>
+      <div class="cwrap" style="height:200px"><canvas id="c-exec-p"></canvas></div>
+    </div>
+    ${{top.length?`<div class="tc"><div class="th2"><h3>Trechos com maior sinal de repasse</h3></div>
+    <table><thead><tr><th>Trecho</th><th>Variação média</th><th>Classificação</th></tr></thead>
+    <tbody>${{top.map(r=>`<tr><td class="tt">${{ts(r.t)}}</td><td>${{fv(r.a)}}</td><td>${{badge(r.c)}}</td></tr>`).join('')}}</tbody></table></div>`:''}}
+    <div class="ig">
+      <div class="ic">
+        <h4>Maior repasse identificado</h4>
+        <p><strong>${{ts(hi.trecho_unico)}}</strong> registrou a maior alta: ${{fv(hi.pct)}} vs. semana-base — ${{badge(hi.cls)}}.</p>
+      </div>
+      <div class="ic">
+        <h4>Trecho sem repasse</h4>
+        <p><strong>${{ts(lo.trecho_unico)}}</strong> apresentou ${{fv(lo.pct)}} — ${{lo.pct < 0 ? 'preço abaixo da referência, sem indício de repasse.' : 'variação mínima, sem indício de repasse.'}}</p>
+      </div>
+      <div class="ic"><h4>Legenda</h4><p><span class="badge ba">Muito relevante</span> ≥15% &nbsp;<span class="badge bm">Moderado</span> 10–15% &nbsp;<span class="badge bl">Leve</span> 5–10%</p></div>
+    </div>`;
+
+  dc('c-exec-p');setTimeout(()=>{{
+    const ctx=document.getElementById('c-exec-p');if(!ctx)return;
+    CI['c-exec-p']=new Chart(ctx,{{type:'bar',
+      data:{{labels:ps.map(p=>p.label),datasets:[{{data:ps.map(p=>parseFloat(p.avg.toFixed(1))),backgroundColor:ps.map(p=>CL[p.cls]||'#9C9A93'),borderRadius:6}}]}},
+      options:{{responsive:true,maintainAspectRatio:false,
+        plugins:{{legend:{{display:false}},tooltip:{{callbacks:{{label:c=>`${{c.raw>0?'+':''}}${{c.raw.toFixed(1)}}%`}}}}}},
+        scales:{{x:{{grid:{{display:false}},ticks:{{font:{{size:12}}}}}},y:{{grid:{{color:'rgba(0,0,0,0.05)'}},ticks:{{callback:v=>`${{v>0?'+':''}}${{v.toFixed(0)}}%`,font:{{size:11}}}}}}}}
+      }}
+    }});
+  }},50);
+}}
+
+function rSem(){{
+  if(!INJECTED.semanas){{document.getElementById('panel-semanas').innerHTML='<div class="empty"><h3>Arquivo não carregado</h3></div>';return}}
+  const e=enrich(INJECTED.semanas);const f=AF.semanas;
+  const filtered=filt(e,f).sort((a,b)=>b.pct-a.pct);
+  const sorted=[...e].sort((a,b)=>a.pct-b.pct);
+  document.getElementById('panel-semanas').innerHTML=`
+    <h2 class="stitle">Semanas anteriores ao reajuste</h2>
+    <p class="sdesc">Preços médios agregados por trecho vs. semana-base 23/02–01/03/2026.</p>
+    <div class="cc"><h3>Variação percentual por trecho</h3><p class="cdesc">Positivo = preço atual acima da referência</p>
+      <div class="cwrap" style="height:${{Math.max(300,sorted.length*38)}}px"><canvas id="c-sem"></canvas></div></div>
+    <div class="tc"><div class="th2"><h3>Tabela detalhada</h3>${{chips('semanas',f)}}</div>
+    <table><thead><tr><th>Trecho</th><th>Preço ref.</th><th>Preço atual</th><th>Variação</th><th>Classificação</th></tr></thead>
+    <tbody>${{filtered.map(r=>`<tr><td class="tt">${{r.tf}}</td><td>${{fb(r.media_preco_referencia)}}</td><td>${{fb(r.media_preco_atual)}}</td><td>${{fv(r.pct)}}</td><td>${{badge(r.cls)}}</td></tr>`).join('')}}</tbody></table></div>`;
+  bar('c-sem',sorted.map(r=>r.tf),sorted.map(r=>parseFloat(r.pct.toFixed(1))),sorted.map(r=>CL[r.cls]||'#9C9A93'),Math.max(300,sorted.length*38));
+}}
+
+function rDet(key,title){{
+  if(!INJECTED[key]){{document.getElementById('panel-'+key).innerHTML='<div class="empty"><h3>Arquivo não carregado</h3></div>';return}}
+  const e=enrich(INJECTED[key]);const f=AF[key];
+  const byT={{}};e.forEach(r=>{{if(!byT[r.trecho_unico])byT[r.trecho_unico]=[];byT[r.trecho_unico].push(r)}});
+  const sum=Object.entries(byT).map(([t,recs])=>{{
+    const a=recs.reduce((s,r)=>s+(r.pct||0),0)/recs.length;
+    const aA=recs.reduce((s,r)=>s+r.media_preco_atual,0)/recs.length;
+    const aR=recs.reduce((s,r)=>s+r.media_preco_referencia,0)/recs.length;
+    return{{trecho_unico:t,tf:ts(t),pct:a,cls:cls(a),media_preco_atual:aA,media_preco_referencia:aR}};
+  }}).sort((a,b)=>b.pct-a.pct);
+  const fs=filt(sum,f);const fd=filt(e,f).sort((a,b)=>a.trecho_unico.localeCompare(b.trecho_unico));
+  const sorted=[...sum].sort((a,b)=>a.pct-b.pct);
+  document.getElementById('panel-'+key).innerHTML=`
+    <h2 class="stitle">Semana ${{title}}</h2>
+    <p class="sdesc">Preços por dia e antecedência vs. mesma antecedência na semana-base.</p>
+    <div class="cc"><h3>Variação média por trecho</h3><p class="cdesc">Média de todos os dias e antecedências</p>
+      <div class="cwrap" style="height:${{Math.max(280,sorted.length*38)}}px"><canvas id="c-${{key}}"></canvas></div></div>
+    <div class="tc"><div class="th2"><h3>Resumo por trecho (média semanal)</h3>${{chips(key,f)}}</div>
+    <table><thead><tr><th>Trecho</th><th>Preço ref.</th><th>Preço médio</th><th>Variação</th><th>Classificação</th></tr></thead>
+    <tbody>${{fs.map(r=>`<tr><td class="tt">${{r.tf}}</td><td>${{fb(r.media_preco_referencia)}}</td><td>${{fb(r.media_preco_atual)}}</td><td>${{fv(r.pct)}}</td><td>${{badge(r.cls)}}</td></tr>`).join('')}}</tbody></table></div>
+    <div class="tc"><div class="th2"><h3>Detalhamento por dia e antecedência</h3></div>
+    <table><thead><tr><th>Trecho</th><th>Data</th><th>Antec.</th><th>Preço ref.</th><th>Preço atual</th><th>Variação</th><th>Classificação</th></tr></thead>
+    <tbody>${{fd.map(r=>`<tr><td class="tt">${{r.tf}}</td><td>${{r.data||'–'}}</td><td>D${{r.antecedencia}}</td><td>${{fb(r.media_preco_referencia)}}</td><td>${{fb(r.media_preco_atual)}}</td><td>${{fv(r.pct)}}</td><td>${{badge(r.cls)}}</td></tr>`).join('')}}</tbody></table></div>`;
+  bar('c-'+key,sorted.map(r=>r.tf),sorted.map(r=>parseFloat(r.pct.toFixed(1))),sorted.map(r=>CL[r.cls]||'#9C9A93'),Math.max(280,sorted.length*38));
+}}
+
+function rFer(key,nome,dias,refNome){{
+  if(!INJECTED[key]){{document.getElementById('panel-'+key).innerHTML='<div class="empty"><h3>Arquivo não carregado</h3></div>';return}}
+  const e=enrich(INJECTED[key]).map(r=>{{return{{...r,sentido:(r.data||'').includes('02')||(r.data||'').includes('17')?'Ida':'Volta'}}}});
+  const f=AF[key];
+  const filtered=filt(e,f).sort((a,b)=>b.pct-a.pct);
+  const sorted=[...e].sort((a,b)=>a.pct-b.pct);
+  const labels=sorted.map(r=>r.tf+(e.filter(x=>x.trecho_unico===r.trecho_unico).length>1?` (${{r.sentido}})`:''));
+  document.getElementById('panel-'+key).innerHTML=`
+    <h2 class="stitle">Feriado de ${{nome}}</h2>
+    <p class="sdesc">Dias de maior movimento: ${{dias}}. Referência: ${{refNome}}.</p>
+    <div class="cc"><h3>Variação percentual vs. ${{refNome}}</h3><p class="cdesc">Preço atual vs. mesmo trecho no ${{refNome}}</p>
+      <div class="cwrap" style="height:${{Math.max(280,sorted.length*42)}}px"><canvas id="c-${{key}}"></canvas></div></div>
+    <div class="tc"><div class="th2"><h3>Tabela detalhada — ${{nome}}</h3>${{chips(key,f)}}</div>
+    <table><thead><tr><th>Trecho</th><th>Data</th><th>Sentido</th><th>Antec.</th><th>Ref. (${{refNome}})</th><th>Preço atual</th><th>Variação</th><th>Classificação</th></tr></thead>
+    <tbody>${{filtered.map(r=>`<tr><td class="tt">${{r.tf}}</td><td>${{r.data||'–'}}</td><td>${{r.sentido}}</td><td>D${{r.antecedencia}}</td><td>${{fb(r.media_preco_referencia)}}</td><td>${{fb(r.media_preco_atual)}}</td><td>${{fv(r.pct)}}</td><td>${{badge(r.cls)}}</td></tr>`).join('')}}</tbody></table></div>`;
+  bar('c-'+key,labels,sorted.map(r=>parseFloat(r.pct.toFixed(1))),sorted.map(r=>CL[r.cls]||'#9C9A93'),Math.max(280,sorted.length*42));
+}}
+
+rExec();
+['semanas','s16','s23','pascoa','tiradentes'].forEach(rp);
+document.getElementById('update-text').textContent = UPDATE_LABEL;
+</script>
+</body></html>"""
+
+import streamlit.components.v1 as components
+import hashlib
+
+# Injeta o hash no HTML para forçar rerenderização quando dados mudam
+data_hash = hashlib.md5(data_js.encode()).hexdigest()
+html_with_hash = html.replace("</body>", f"<!-- hash:{data_hash} --></body>")
+components.html(html_with_hash, height=2600, scrolling=True)
