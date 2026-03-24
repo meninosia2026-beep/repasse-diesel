@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime
+from datetime import datetime, date
 from zoneinfo import ZoneInfo
 
 
@@ -35,8 +35,6 @@ with st.expander("📂 Atualizar arquivos CSV", expanded=False):
     with col3:
         up_tiradentes = st.file_uploader("Feriado Tiradentes",  type="csv", key="up_tir")
 
-
-
 # ── LOAD DATA ─────────────────────────────────────────────────────────────────
 def load_file(upload, default_name):
     if upload:
@@ -53,27 +51,20 @@ df_s23        = load_file(up_s23,        "semana_23_a_29.csv")
 df_pascoa     = load_file(up_pascoa,     "feriado_pascoa.csv")
 df_tiradentes = load_file(up_tiradentes, "feriado_tiradentes.csv")
 
-# Timestamp de atualização
 any_upload = any([up_semanas, up_s16, up_s23, up_pascoa, up_tiradentes])
 
 if any_upload:
     now_sp = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M")
     update_label = f"Importado em {now_sp} · via upload manual"
 else:
-    # Busca data do último commit dos CSVs via API do GitHub
     try:
-        import urllib.request, json
-        # Detecta repo automaticamente a partir da variável de ambiente do Streamlit Cloud
-        repo = os.environ.get("STREAMLIT_SHARING_MODE", "")
-        # Tenta pegar do git log local (funciona no Streamlit Cloud)
         import subprocess
         result = subprocess.run(
             ["git", "log", "-1", "--format=%ci", "--", "semanas_anteriores.csv", "data/semanas_anteriores.csv"],
             capture_output=True, text=True, cwd="."
         )
         if result.stdout.strip():
-            from datetime import datetime as dt
-            git_date = dt.fromisoformat(result.stdout.strip())
+            git_date = datetime.fromisoformat(result.stdout.strip())
             git_date_sp = git_date.astimezone(ZoneInfo("America/Sao_Paulo"))
             update_label = f"Atualizado em {git_date_sp.strftime('%d/%m/%Y %H:%M')} · via databricks"
         else:
@@ -97,7 +88,6 @@ const INJECTED = {{
 const UPDATE_LABEL = "{update_label}";
 """
 
-# ── HTML DASHBOARD ────────────────────────────────────────────────────────────
 html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -409,7 +399,89 @@ document.getElementById('update-text').textContent = UPDATE_LABEL;
 import streamlit.components.v1 as components
 import hashlib
 
-# Injeta o hash no HTML para forçar rerenderização quando dados mudam
 data_hash = hashlib.md5(data_js.encode()).hexdigest()
 html_with_hash = html.replace("</body>", f"<!-- hash:{data_hash} --></body>")
 components.html(html_with_hash, height=2600, scrolling=True)
+
+# ── PLANO DE AÇÃO ─────────────────────────────────────────────────────────────
+st.divider()
+st.subheader("📋 Plano de ação — trechos críticos")
+st.caption("Preencha e salve individualmente. Os dados ficam na sessão atual.")
+
+def get_criticos(*dfs):
+    records = []
+    for df in dfs:
+        if df is None: continue
+        d = df.copy()
+        d["pct"] = (d["media_preco_atual"] - d["media_preco_referencia"]) / d["media_preco_referencia"] * 100
+        records.append(d[["trecho_unico","pct"]])
+    if not records: return pd.DataFrame()
+    combined = pd.concat(records)
+    return (combined[combined["pct"] >= 5]
+            .groupby("trecho_unico")["pct"].mean()
+            .reset_index()
+            .sort_values("pct", ascending=False)
+            .head(10))
+
+def fmt(t):
+    return " › ".join([p.capitalize() for p in t.split("-") if len(p) > 2])
+
+criticos = get_criticos(df_semanas, df_s16, df_s23, df_pascoa, df_tiradentes)
+
+if criticos.empty:
+    st.info("Carregue os CSVs para gerar o plano de ação.")
+else:
+    if "plano" not in st.session_state:
+        st.session_state.plano = {}
+
+    STATUS = ["Aberto", "Em andamento", "Monitorando", "Concluído"]
+    EMOJI  = {"Aberto":"🔴","Em andamento":"🟡","Monitorando":"🔵","Concluído":"🟢"}
+
+    for _, row in criticos.iterrows():
+        t   = row["trecho_unico"]
+        pct = row["pct"]
+        p   = st.session_state.plano.get(t, {})
+        lbl = "Muito relevante" if pct >= 15 else "Moderado" if pct >= 10 else "Leve"
+        ico = EMOJI.get(p.get("status","Aberto"), "🔴")
+
+        with st.expander(f"{ico}  {fmt(t)} — {pct:+.1f}% · {lbl}", expanded=False):
+            c1, c2, c3 = st.columns([2, 1.5, 1.5])
+            with c1:
+                resp = st.text_input("Responsável", value=p.get("responsavel",""), key=f"r_{t}")
+            with c2:
+                prazo_val = None
+                if p.get("prazo"):
+                    try: prazo_val = date.fromisoformat(p["prazo"])
+                    except: pass
+                prazo = st.date_input("Prazo", value=prazo_val, key=f"d_{t}")
+            with c3:
+                idx = STATUS.index(p.get("status","Aberto"))
+                status = st.selectbox("Status", STATUS, index=idx, key=f"s_{t}")
+            acao = st.text_area("Ação / observações", value=p.get("acao",""), key=f"a_{t}", height=75)
+
+            if st.button("Salvar", key=f"btn_{t}"):
+                st.session_state.plano[t] = {
+                    "responsavel": resp,
+                    "prazo": prazo.isoformat() if prazo else "",
+                    "status": status,
+                    "acao": acao,
+                }
+                st.success("Salvo!", icon="✅")
+
+    # Resumo + exportar
+    st.markdown("---")
+    rows = []
+    for _, row in criticos.iterrows():
+        t = row["trecho_unico"]
+        p = st.session_state.plano.get(t, {})
+        rows.append({
+            "Trecho":      fmt(t),
+            "Variação":    f"{row['pct']:+.1f}%",
+            "Responsável": p.get("responsavel","—"),
+            "Prazo":       p.get("prazo","—"),
+            "Status":      p.get("status","Aberto"),
+            "Ação":        p.get("acao","—"),
+        })
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    csv_bytes = pd.DataFrame(rows).to_csv(index=False).encode("utf-8")
+    st.download_button("⬇️ Exportar CSV", csv_bytes, "plano_acao_diesel.csv", "text/csv")
