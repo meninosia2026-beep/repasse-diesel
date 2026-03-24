@@ -418,87 +418,87 @@ function rFer(key,nome,dias,refNome){{
 }}
 
 
-function rPlano() {
+function rPlano() {{
   const keys = ['semanas','s16','s23','pascoa','tiradentes'];
   const all = [];
-  keys.forEach(k => {
+  keys.forEach(k => {{
     if (!INJECTED[k]) return;
     enrich(INJECTED[k]).forEach(r => all.push(r));
-  });
+  }});
 
   // Agrupa por trecho e calcula média de variação
-  const byT = {};
-  all.filter(r => r.pct >= 5).forEach(r => {
+  const byT = {{}};
+  all.filter(r => r.pct >= 5).forEach(r => {{
     if (!byT[r.trecho_unico]) byT[r.trecho_unico] = [];
     byT[r.trecho_unico].push(r.pct);
-  });
+  }});
   const criticos = Object.entries(byT)
-    .map(([t, pcts]) => ({ t, avg: pcts.reduce((s,v)=>s+v,0)/pcts.length, cls: cls(pcts.reduce((s,v)=>s+v,0)/pcts.length) }))
+    .map(([t, pcts]) => ({{ t, avg: pcts.reduce((s,v)=>s+v,0)/pcts.length, cls: cls(pcts.reduce((s,v)=>s+v,0)/pcts.length) }}))
     .sort((a,b) => b.avg - a.avg)
     .slice(0, 10);
 
   // Carrega plano salvo do localStorage
-  let plano = {};
-  try { plano = JSON.parse(localStorage.getItem('plano_diesel') || '{}'); } catch(e) {}
+  let plano = {{}};
+  try {{ plano = JSON.parse(localStorage.getItem('plano_diesel') || '{{}}'); }} catch(e) {{}}
 
-  function salvar(trecho) {
+  function salvar(trecho) {{
     const row = document.getElementById('row-' + trecho.replace(/[^a-z0-9]/gi,'_'));
     if (!row) return;
-    plano[trecho] = {
+    plano[trecho] = {{
       responsavel: row.querySelector('.f-resp').value,
       data:        row.querySelector('.f-data').value,
       acao:        row.querySelector('.f-acao').value,
       status:      row.querySelector('.f-status').value,
-    };
+    }};
     localStorage.setItem('plano_diesel', JSON.stringify(plano));
     const btn = row.querySelector('.pa-save');
     btn.textContent = 'Salvo ✓';
     setTimeout(() => btn.textContent = 'Salvar', 1500);
-  }
+  }}
 
-  const stClass = { 'Aberto':'st-aberto','Em andamento':'st-andamento','Concluído':'st-concluido','Monitorando':'st-monitorando' };
+  const stClass = {{ 'Aberto':'st-aberto','Em andamento':'st-andamento','Concluído':'st-concluido','Monitorando':'st-monitorando' }};
 
-  const rows = criticos.map(r => {
+  const rows = criticos.map(r => {{
     const id = r.t.replace(/[^a-z0-9]/gi,'_');
-    const p = plano[r.t] || {};
+    const p = plano[r.t] || {{}};
     return `
-      <tr id="row-${id}">
+      <tr id="row-${{id}}">
         <td style="min-width:160px">
-          <div style="font-weight:500;font-size:13px">${ts(r.t)}</div>
-          <div style="font-size:11px;margin-top:2px">${fv(r.avg)} &nbsp;${badge(r.cls)}</div>
+          <div style="font-weight:500;font-size:13px">${{ts(r.t)}}</div>
+          <div style="font-size:11px;margin-top:2px">${{fv(r.avg)}} &nbsp;${{badge(r.cls)}}</div>
         </td>
         <td style="min-width:130px">
-          <input class="pa-input f-resp" value="${p.responsavel||''}" placeholder="Nome do responsável">
+          <input class="pa-input f-resp" value="${{p.responsavel||''}}" placeholder="Nome do responsável">
         </td>
         <td style="min-width:110px">
-          <input class="pa-input f-data" type="date" value="${p.data||''}">
+          <input class="pa-input f-data" type="date" value="${{p.data||''}}">
         </td>
         <td style="min-width:200px">
-          <input class="pa-input f-acao" value="${p.acao||''}" placeholder="Descreva a ação">
+          <input class="pa-input f-acao" value="${{p.acao||''}}" placeholder="Descreva a ação">
         </td>
         <td style="min-width:130px">
           <select class="pa-select f-status">
-            ${['Aberto','Em andamento','Concluído','Monitorando'].map(s =>
-              `<option value="${s}" ${(p.status||'Aberto')===s?'selected':''} class="${stClass[s]||''}">
-                ${s}
+            ${{['Aberto','Em andamento','Concluído','Monitorando'].map(s =>
+              `<option value="${{s}}" ${{(p.status||'Aberto')===s?'selected':''}} class="${{stClass[s]||''}}">
+                ${{s}}
               </option>`
-            ).join('')}
+            ).join('')}}
           </select>
         </td>
         <td>
-          <button class="pa-save" onclick="salvarPlano('${r.t}')">Salvar</button>
+          <button class="pa-save" onclick="salvarPlano('${{r.t}}')">Salvar</button>
         </td>
       </tr>`;
-  }).join('');
+  }}).join('');
 
   document.getElementById('panel-plano').innerHTML = `
     <h2 class="stitle">Plano de ação</h2>
     <p class="sdesc">Trechos com maior sinal de repasse (variação média ≥ 5%). Edite e salve cada linha individualmente.</p>
-    ${criticos.length === 0
+    ${{criticos.length === 0
       ? '<div class="empty"><h3>Nenhum trecho crítico identificado</h3><p>Carregue os arquivos CSV para gerar o plano.</p></div>'
       : `<div class="tc">
           <div class="th2">
-            <h3>Trechos críticos — top ${criticos.length}</h3>
+            <h3>Trechos críticos — top ${{criticos.length}}</h3>
             <button class="pa-save" onclick="exportarPlano()" style="background:var(--neutral)">Exportar CSV</button>
           </div>
           <div style="overflow-x:auto">
@@ -511,59 +511,59 @@ function rPlano() {
                 <th>Status</th>
                 <th></th>
               </tr></thead>
-              <tbody>${rows}</tbody>
+              <tbody>${{rows}}</tbody>
             </table>
           </div>
         </div>`
-    }
+    }}
   `;
-}
+}}
 
-function salvarPlano(trecho) {
-  let plano = {};
-  try { plano = JSON.parse(localStorage.getItem('plano_diesel') || '{}'); } catch(e) {}
+function salvarPlano(trecho) {{
+  let plano = {{}};
+  try {{ plano = JSON.parse(localStorage.getItem('plano_diesel') || '{{}}'); }} catch(e) {{}}
   const id = trecho.replace(/[^a-z0-9]/gi,'_');
   const row = document.getElementById('row-' + id);
   if (!row) return;
-  plano[trecho] = {
+  plano[trecho] = {{
     responsavel: row.querySelector('.f-resp').value,
     data:        row.querySelector('.f-data').value,
     acao:        row.querySelector('.f-acao').value,
     status:      row.querySelector('.f-status').value,
-  };
+  }};
   localStorage.setItem('plano_diesel', JSON.stringify(plano));
   const btn = row.querySelector('.pa-save');
   btn.textContent = 'Salvo ✓';
   setTimeout(() => btn.textContent = 'Salvar', 1500);
-}
+}}
 
-function exportarPlano() {
-  let plano = {};
-  try { plano = JSON.parse(localStorage.getItem('plano_diesel') || '{}'); } catch(e) {}
+function exportarPlano() {{
+  let plano = {{}};
+  try {{ plano = JSON.parse(localStorage.getItem('plano_diesel') || '{{}}'); }} catch(e) {{}}
   const keys = ['semanas','s16','s23','pascoa','tiradentes'];
   const all = [];
-  keys.forEach(k => { if (INJECTED[k]) enrich(INJECTED[k]).forEach(r => all.push(r)); });
-  const byT = {};
-  all.filter(r => r.pct >= 5).forEach(r => {
+  keys.forEach(k => {{ if (INJECTED[k]) enrich(INJECTED[k]).forEach(r => all.push(r)); }});
+  const byT = {{}};
+  all.filter(r => r.pct >= 5).forEach(r => {{
     if (!byT[r.trecho_unico]) byT[r.trecho_unico] = [];
     byT[r.trecho_unico].push(r.pct);
-  });
+  }});
   const criticos = Object.entries(byT)
-    .map(([t, pcts]) => ({ t, avg: pcts.reduce((s,v)=>s+v,0)/pcts.length }))
+    .map(([t, pcts]) => ({{ t, avg: pcts.reduce((s,v)=>s+v,0)/pcts.length }}))
     .sort((a,b) => b.avg - a.avg).slice(0, 10);
 
   const lines = ['trecho,variacao_media,responsavel,prazo,acao,status'];
-  criticos.forEach(r => {
-    const p = plano[r.t] || {};
+  criticos.forEach(r => {{
+    const p = plano[r.t] || {{}};
     lines.push([r.t, r.avg.toFixed(1)+'%', p.responsavel||'', p.data||'', (p.acao||'').replace(/,/g,';'), p.status||'Aberto'].join(','));
-  });
+  }});
   const blob = new Blob([lines.join('
-')], { type: 'text/csv' });
+')], {{ type: 'text/csv' }});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'plano_acao_diesel.csv';
   a.click();
-}
+}}
 
 rExec();
 ['semanas','s16','s23','pascoa','tiradentes'].forEach(rp);
