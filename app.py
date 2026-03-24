@@ -572,6 +572,16 @@ setTimeout(function() {{
   var el = document.getElementById('update-text');
   if (el) el.textContent = UPDATE_LABEL;
 }}, 100);
+  // Auto-resize iframe height to fit content
+  function resizeFrame() {{
+    const h = document.body.scrollHeight;
+    window.parent.postMessage({{type: 'streamlit:setFrameHeight', height: h}}, '*');
+  }}
+  // Resize after init and on tab switch
+  const _origSwitch = switchTab;
+  switchTab = function(key, el) {{ _origSwitch(key, el); setTimeout(resizeFrame, 100); }};
+  setTimeout(resizeFrame, 300);
+  window.addEventListener('resize', resizeFrame);
 </script>
 </body></html>"""
 
@@ -581,4 +591,4 @@ import hashlib
 # Injeta o hash no HTML para forçar rerenderização quando dados mudam
 data_hash = hashlib.md5(data_js.encode()).hexdigest()
 html_with_hash = html.replace("</body>", f"<!-- hash:{data_hash} --></body>")
-components.html(html_with_hash, height=3200, scrolling=True)
+components.html(html_with_hash, height=800, scrolling=False)
