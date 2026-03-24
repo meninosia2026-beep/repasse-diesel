@@ -75,11 +75,11 @@ else:
             from datetime import datetime as dt
             git_date = dt.fromisoformat(result.stdout.strip())
             git_date_sp = git_date.astimezone(ZoneInfo("America/Sao_Paulo"))
-            update_label = f"Atualizado em {git_date_sp.strftime('%d/%m/%Y %H:%M')} · via databricks"
+            update_label = f"Atualizado em {git_date_sp.strftime('%d/%m/%Y %H:%M')} · via repositório GitHub"
         else:
-            update_label = "via databricks"
+            update_label = "via repositório GitHub"
     except Exception:
-        update_label = "via databricks"
+        update_label = "via repositório GitHub"
 
 def df_to_json(df):
     if df is None:
@@ -176,6 +176,20 @@ html = f"""<!DOCTYPE html>
   .empty{{text-align:center;padding:50px 20px;color:var(--muted)}}
   .empty h3{{font-size:15px;font-weight:500;margin-bottom:7px}}
   footer{{text-align:center;padding:18px;font-size:12px;color:var(--faint);border-top:1px solid var(--border);background:var(--surface);margin-top:28px}}
+  .pa-table{{width:100%;border-collapse:collapse;font-size:13px}}
+  .pa-table th{{padding:9px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);background:var(--surface2);border-bottom:1px solid var(--border)}}
+  .pa-table td{{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}}
+  .pa-table tr:last-child td{{border-bottom:none}}
+  .pa-table tr:hover td{{background:var(--surface2)}}
+  .pa-input{{width:100%;border:1px solid var(--border-strong);border-radius:6px;padding:5px 8px;font-size:12px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);outline:none}}
+  .pa-input:focus{{border-color:var(--accent)}}
+  .pa-select{{width:100%;border:1px solid var(--border-strong);border-radius:6px;padding:5px 8px;font-size:12px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);outline:none;cursor:pointer}}
+  .pa-save{{padding:4px 12px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity .15s}}
+  .pa-save:hover{{opacity:.85}}
+  .st-aberto{{background:#FAE8E4;color:var(--accent)}}
+  .st-andamento{{background:var(--warn-l);color:var(--warn)}}
+  .st-concluido{{background:var(--ok-l);color:var(--ok)}}
+  .st-monitorando{{background:#E6F1FB;color:#185FA5}}
 </style>
 </head>
 <body>
@@ -198,6 +212,7 @@ html = f"""<!DOCTYPE html>
   <div class="tab" onclick="switchTab('s23',this)">23–29/03</div>
   <div class="tab" onclick="switchTab('pascoa',this)">Páscoa</div>
   <div class="tab" onclick="switchTab('tiradentes',this)">Tiradentes</div>
+  <div class="tab" onclick="switchTab('plano',this)">Plano de ação</div>
 </div>
 <div class="main">
   <div id="panel-resumo" class="panel active"></div>
@@ -206,6 +221,7 @@ html = f"""<!DOCTYPE html>
   <div id="panel-s23" class="panel"></div>
   <div id="panel-pascoa" class="panel"></div>
   <div id="panel-tiradentes" class="panel"></div>
+  <div id="panel-plano" class="panel"></div>
 </div>
 <footer>Referência base: semana 23/02–01/03/2026 · Reajuste do diesel analisado pós-16/03/2026</footer>
 
@@ -266,6 +282,7 @@ function rp(key){{
   else if(key==='s23')rDet('s23','23 a 29 de março');
   else if(key==='pascoa')rFer('pascoa','Páscoa','02/04 (ida) e 05/04 (volta)','Carnaval');
   else if(key==='tiradentes')rFer('tiradentes','Tiradentes','17/04 (ida) e 21/04 (volta)','Carnaval');
+  else if(key==='plano')rPlano();
 }}
 
 function rExec(){{
@@ -400,8 +417,158 @@ function rFer(key,nome,dias,refNome){{
   bar('c-'+key,labels,sorted.map(r=>parseFloat(r.pct.toFixed(1))),sorted.map(r=>CL[r.cls]||'#9C9A93'),Math.max(280,sorted.length*42));
 }}
 
+
+function rPlano() {
+  const keys = ['semanas','s16','s23','pascoa','tiradentes'];
+  const all = [];
+  keys.forEach(k => {
+    if (!INJECTED[k]) return;
+    enrich(INJECTED[k]).forEach(r => all.push(r));
+  });
+
+  // Agrupa por trecho e calcula média de variação
+  const byT = {};
+  all.filter(r => r.pct >= 5).forEach(r => {
+    if (!byT[r.trecho_unico]) byT[r.trecho_unico] = [];
+    byT[r.trecho_unico].push(r.pct);
+  });
+  const criticos = Object.entries(byT)
+    .map(([t, pcts]) => ({ t, avg: pcts.reduce((s,v)=>s+v,0)/pcts.length, cls: cls(pcts.reduce((s,v)=>s+v,0)/pcts.length) }))
+    .sort((a,b) => b.avg - a.avg)
+    .slice(0, 10);
+
+  // Carrega plano salvo do localStorage
+  let plano = {};
+  try { plano = JSON.parse(localStorage.getItem('plano_diesel') || '{}'); } catch(e) {}
+
+  function salvar(trecho) {
+    const row = document.getElementById('row-' + trecho.replace(/[^a-z0-9]/gi,'_'));
+    if (!row) return;
+    plano[trecho] = {
+      responsavel: row.querySelector('.f-resp').value,
+      data:        row.querySelector('.f-data').value,
+      acao:        row.querySelector('.f-acao').value,
+      status:      row.querySelector('.f-status').value,
+    };
+    localStorage.setItem('plano_diesel', JSON.stringify(plano));
+    const btn = row.querySelector('.pa-save');
+    btn.textContent = 'Salvo ✓';
+    setTimeout(() => btn.textContent = 'Salvar', 1500);
+  }
+
+  const stClass = { 'Aberto':'st-aberto','Em andamento':'st-andamento','Concluído':'st-concluido','Monitorando':'st-monitorando' };
+
+  const rows = criticos.map(r => {
+    const id = r.t.replace(/[^a-z0-9]/gi,'_');
+    const p = plano[r.t] || {};
+    return `
+      <tr id="row-${id}">
+        <td style="min-width:160px">
+          <div style="font-weight:500;font-size:13px">${ts(r.t)}</div>
+          <div style="font-size:11px;margin-top:2px">${fv(r.avg)} &nbsp;${badge(r.cls)}</div>
+        </td>
+        <td style="min-width:130px">
+          <input class="pa-input f-resp" value="${p.responsavel||''}" placeholder="Nome do responsável">
+        </td>
+        <td style="min-width:110px">
+          <input class="pa-input f-data" type="date" value="${p.data||''}">
+        </td>
+        <td style="min-width:200px">
+          <input class="pa-input f-acao" value="${p.acao||''}" placeholder="Descreva a ação">
+        </td>
+        <td style="min-width:130px">
+          <select class="pa-select f-status">
+            ${['Aberto','Em andamento','Concluído','Monitorando'].map(s =>
+              `<option value="${s}" ${(p.status||'Aberto')===s?'selected':''} class="${stClass[s]||''}">
+                ${s}
+              </option>`
+            ).join('')}
+          </select>
+        </td>
+        <td>
+          <button class="pa-save" onclick="salvarPlano('${r.t}')">Salvar</button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('panel-plano').innerHTML = `
+    <h2 class="stitle">Plano de ação</h2>
+    <p class="sdesc">Trechos com maior sinal de repasse (variação média ≥ 5%). Edite e salve cada linha individualmente.</p>
+    ${criticos.length === 0
+      ? '<div class="empty"><h3>Nenhum trecho crítico identificado</h3><p>Carregue os arquivos CSV para gerar o plano.</p></div>'
+      : `<div class="tc">
+          <div class="th2">
+            <h3>Trechos críticos — top ${criticos.length}</h3>
+            <button class="pa-save" onclick="exportarPlano()" style="background:var(--neutral)">Exportar CSV</button>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="pa-table">
+              <thead><tr>
+                <th>Trecho</th>
+                <th>Responsável</th>
+                <th>Prazo</th>
+                <th>Ação</th>
+                <th>Status</th>
+                <th></th>
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>`
+    }
+  `;
+}
+
+function salvarPlano(trecho) {
+  let plano = {};
+  try { plano = JSON.parse(localStorage.getItem('plano_diesel') || '{}'); } catch(e) {}
+  const id = trecho.replace(/[^a-z0-9]/gi,'_');
+  const row = document.getElementById('row-' + id);
+  if (!row) return;
+  plano[trecho] = {
+    responsavel: row.querySelector('.f-resp').value,
+    data:        row.querySelector('.f-data').value,
+    acao:        row.querySelector('.f-acao').value,
+    status:      row.querySelector('.f-status').value,
+  };
+  localStorage.setItem('plano_diesel', JSON.stringify(plano));
+  const btn = row.querySelector('.pa-save');
+  btn.textContent = 'Salvo ✓';
+  setTimeout(() => btn.textContent = 'Salvar', 1500);
+}
+
+function exportarPlano() {
+  let plano = {};
+  try { plano = JSON.parse(localStorage.getItem('plano_diesel') || '{}'); } catch(e) {}
+  const keys = ['semanas','s16','s23','pascoa','tiradentes'];
+  const all = [];
+  keys.forEach(k => { if (INJECTED[k]) enrich(INJECTED[k]).forEach(r => all.push(r)); });
+  const byT = {};
+  all.filter(r => r.pct >= 5).forEach(r => {
+    if (!byT[r.trecho_unico]) byT[r.trecho_unico] = [];
+    byT[r.trecho_unico].push(r.pct);
+  });
+  const criticos = Object.entries(byT)
+    .map(([t, pcts]) => ({ t, avg: pcts.reduce((s,v)=>s+v,0)/pcts.length }))
+    .sort((a,b) => b.avg - a.avg).slice(0, 10);
+
+  const lines = ['trecho,variacao_media,responsavel,prazo,acao,status'];
+  criticos.forEach(r => {
+    const p = plano[r.t] || {};
+    lines.push([r.t, r.avg.toFixed(1)+'%', p.responsavel||'', p.data||'', (p.acao||'').replace(/,/g,';'), p.status||'Aberto'].join(','));
+  });
+  const blob = new Blob([lines.join('
+')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'plano_acao_diesel.csv';
+  a.click();
+}
+
 rExec();
 ['semanas','s16','s23','pascoa','tiradentes'].forEach(rp);
+document.getElementById('update-text').textContent = UPDATE_LABEL;
+rPlano();
 document.getElementById('update-text').textContent = UPDATE_LABEL;
 </script>
 </body></html>"""
