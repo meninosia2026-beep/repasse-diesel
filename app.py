@@ -565,11 +565,13 @@ function exportarPlano() {{
   a.click();
 }}
 
-rExec();
-['semanas','s16','s23','pascoa','tiradentes'].forEach(rp);
-document.getElementById('update-text').textContent = UPDATE_LABEL;
-rPlano();
-document.getElementById('update-text').textContent = UPDATE_LABEL;
+setTimeout(function() {{
+  rExec();
+  ['semanas','s16','s23','pascoa','tiradentes'].forEach(rp);
+  rPlano();
+  var el = document.getElementById('update-text');
+  if (el) el.textContent = UPDATE_LABEL;
+}}, 100);
 </script>
 </body></html>"""
 
@@ -579,4 +581,4 @@ import hashlib
 # Injeta o hash no HTML para forçar rerenderização quando dados mudam
 data_hash = hashlib.md5(data_js.encode()).hexdigest()
 html_with_hash = html.replace("</body>", f"<!-- hash:{data_hash} --></body>")
-components.html(html_with_hash, height=2600, scrolling=True)
+components.html(html_with_hash, height=3200, scrolling=True)
