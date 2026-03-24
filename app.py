@@ -212,7 +212,6 @@ html = f"""<!DOCTYPE html>
   <div class="tab" onclick="switchTab('s23',this)">23–29/03</div>
   <div class="tab" onclick="switchTab('pascoa',this)">Páscoa</div>
   <div class="tab" onclick="switchTab('tiradentes',this)">Tiradentes</div>
-  <div class="tab" onclick="switchTab('plano',this)">Plano de ação</div>
 </div>
 <div class="main">
   <div id="panel-resumo" class="panel active"></div>
@@ -221,7 +220,6 @@ html = f"""<!DOCTYPE html>
   <div id="panel-s23" class="panel"></div>
   <div id="panel-pascoa" class="panel"></div>
   <div id="panel-tiradentes" class="panel"></div>
-  <div id="panel-plano" class="panel"></div>
 </div>
 <footer>Referência base: semana 23/02–01/03/2026 · Reajuste do diesel analisado pós-16/03/2026</footer>
 
@@ -282,7 +280,6 @@ function rp(key){{
   else if(key==='s23')rDet('s23','23 a 29 de março');
   else if(key==='pascoa')rFer('pascoa','Páscoa','02/04 (ida) e 05/04 (volta)','Carnaval');
   else if(key==='tiradentes')rFer('tiradentes','Tiradentes','17/04 (ida) e 21/04 (volta)','Carnaval');
-  else if(key==='plano')rPlano();
 }}
 
 function rExec(){{
@@ -519,24 +516,6 @@ function rPlano() {{
   `;
 }}
 
-function salvarPlano(trecho) {{
-  let plano = {{}};
-  try {{ plano = JSON.parse(localStorage.getItem('plano_diesel') || '{{}}'); }} catch(e) {{}}
-  const id = trecho.replace(/[^a-z0-9]/gi,'_');
-  const row = document.getElementById('row-' + id);
-  if (!row) return;
-  plano[trecho] = {{
-    responsavel: row.querySelector('.f-resp').value,
-    data:        row.querySelector('.f-data').value,
-    acao:        row.querySelector('.f-acao').value,
-    status:      row.querySelector('.f-status').value,
-  }};
-  localStorage.setItem('plano_diesel', JSON.stringify(plano));
-  const btn = row.querySelector('.pa-save');
-  btn.textContent = 'Salvo ✓';
-  setTimeout(() => btn.textContent = 'Salvar', 1500);
-}}
-
 function exportarPlano() {{
   let plano = {{}};
   try {{ plano = JSON.parse(localStorage.getItem('plano_diesel') || '{{}}'); }} catch(e) {{}}
@@ -591,94 +570,3 @@ import hashlib
 data_hash = hashlib.md5(data_js.encode()).hexdigest()
 html_with_hash = html.replace("</body>", f"<!-- hash:{data_hash} --></body>")
 components.html(html_with_hash, height=2600, scrolling=True)
-
-# ── PLANO DE AÇÃO (Streamlit nativo — leve) ───────────────────────────────
-st.divider()
-st.markdown("### 📋 Plano de ação")
-st.caption("Trechos críticos com maior sinal de repasse. Preencha responsável, prazo, ação e status.")
-
-# Calcula trechos críticos a partir dos dados carregados
-import numpy as np
-
-def get_criticos(*dfs):
-    records = []
-    for df in dfs:
-        if df is None: continue
-        d = df.copy()
-        d["pct"] = (d["media_preco_atual"] - d["media_preco_referencia"]) / d["media_preco_referencia"] * 100
-        records.append(d[["trecho_unico","pct"]])
-    if not records: return []
-    combined = pd.concat(records)
-    top = (combined[combined["pct"] >= 5]
-           .groupby("trecho_unico")["pct"].mean()
-           .reset_index()
-           .sort_values("pct", ascending=False)
-           .head(10))
-    return top.to_dict("records")
-
-criticos = get_criticos(df_semanas, df_s16, df_s23, df_pascoa, df_tiradentes)
-
-if not criticos:
-    st.info("Nenhum trecho crítico identificado. Carregue os arquivos CSV para gerar o plano.")
-else:
-    # Inicializa session_state para o plano
-    if "plano" not in st.session_state:
-        st.session_state.plano = {}
-
-    STATUS_OPTS = ["Aberto", "Em andamento", "Monitorando", "Concluído"]
-    STATUS_EMOJI = {"Aberto": "🔴", "Em andamento": "🟡", "Monitorando": "🔵", "Concluído": "🟢"}
-
-    for r in criticos:
-        trecho = r["trecho_unico"]
-        pct    = r["pct"]
-        p      = st.session_state.plano.get(trecho, {})
-
-        # Formata nome do trecho
-        parts  = trecho.split("-")
-        cidades = [p.capitalize() for p in parts if len(p) > 2]
-        nome   = " › ".join(cidades)
-
-        cls_label = "Muito relevante" if pct >= 15 else "Moderado" if pct >= 10 else "Leve"
-
-        with st.expander(f"{STATUS_EMOJI.get(p.get('status','Aberto'), '🔴')}  {nome} — **{pct:+.1f}%** · {cls_label}", expanded=False):
-            c1, c2, c3 = st.columns([2, 1.5, 1.5])
-            with c1:
-                resp = st.text_input("Responsável", value=p.get("responsavel",""), key=f"resp_{trecho}")
-                acao = st.text_area("Ação", value=p.get("acao",""), key=f"acao_{trecho}", height=80)
-            with c2:
-                from datetime import date
-                prazo_val = p.get("prazo", None)
-                if prazo_val and isinstance(prazo_val, str):
-                    try: prazo_val = date.fromisoformat(prazo_val)
-                    except: prazo_val = None
-                prazo = st.date_input("Prazo", value=prazo_val, key=f"prazo_{trecho}")
-            with c3:
-                status_idx = STATUS_OPTS.index(p.get("status", "Aberto"))
-                status = st.selectbox("Status", STATUS_OPTS, index=status_idx, key=f"status_{trecho}")
-
-            if st.button("Salvar", key=f"save_{trecho}"):
-                st.session_state.plano[trecho] = {
-                    "responsavel": resp,
-                    "acao":        acao,
-                    "prazo":       prazo.isoformat() if prazo else "",
-                    "status":      status,
-                }
-                st.success("Salvo!", icon="✅")
-
-    # Exportar CSV
-    st.markdown("---")
-    if st.button("⬇️ Exportar plano como CSV"):
-        rows = []
-        for r in criticos:
-            t = r["trecho_unico"]
-            p = st.session_state.plano.get(t, {})
-            rows.append({
-                "trecho":       t,
-                "variacao_pct": f"{r['pct']:+.1f}%",
-                "responsavel":  p.get("responsavel",""),
-                "prazo":        p.get("prazo",""),
-                "acao":         p.get("acao",""),
-                "status":       p.get("status","Aberto"),
-            })
-        csv_out = pd.DataFrame(rows).to_csv(index=False).encode("utf-8")
-        st.download_button("📥 Baixar CSV", csv_out, "plano_acao_diesel.csv", "text/csv")
