@@ -68,7 +68,7 @@ else:
         # Tenta pegar do git log local (funciona no Streamlit Cloud)
         import subprocess
         result = subprocess.run(
-            ["git", "log", "-1", "--format=%ci", "--", "feriado_tiradentes.csv", "data/feriado_tiradentes.csv"],
+            ["git", "log", "-1", "--format=%ci", "--", "semanas_anteriores.csv", "data/semanas_anteriores.csv"],
             capture_output=True, text=True, cwd="."
         )
         if result.stdout.strip():
