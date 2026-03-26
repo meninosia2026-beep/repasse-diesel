@@ -1,7 +1,7 @@
 antecedencia,trecho_unico,data,media_preco_atual,media_preco_referencia,mediana_preco_atual,mediana_preco_referencia
 1,belo-horizonte-mg-brasilia-df,2026-03-16,257.97,238.55,260.13,242.46
 1,belo-horizonte-mg-brasilia-df,2026-03-17,251.23,220.7,259.99,228.98
-1,belo-horizonte-mg-brasilia-df,2026-03-18,261.21,242.55,260.28,239.48
+1,belo-horizonte-mg-brasilia-df,2026-03-18,261.22,242.55,260.28,239.48
 1,belo-horizonte-mg-brasilia-df,2026-03-19,273.92,245.13,264.54,235.58
 1,belo-horizonte-mg-brasilia-df,2026-03-20,272.9,257.7,250.55,235.58
 1,belo-horizonte-mg-brasilia-df,2026-03-21,279.51,261.9,244.48,236.96
@@ -17,7 +17,7 @@ antecedencia,trecho_unico,data,media_preco_atual,media_preco_referencia,mediana_
 0,belo-horizonte-mg-governador-valadares-mg,2026-03-17,184.15,168.99,184.89,180.87
 0,belo-horizonte-mg-governador-valadares-mg,2026-03-18,176.43,171.21,180.87,188.42
 0,belo-horizonte-mg-governador-valadares-mg,2026-03-19,192.92,157.03,188.91,173.17
-0,belo-horizonte-mg-governador-valadares-mg,2026-03-20,189.91,172.93,188.91,184.61
+0,belo-horizonte-mg-governador-valadares-mg,2026-03-20,189.9,172.93,188.91,184.61
 0,belo-horizonte-mg-governador-valadares-mg,2026-03-21,158.44,165.78,171.74,175.52
 0,belo-horizonte-mg-governador-valadares-mg,2026-03-22,191.82,182.62,184.89,188.67
 1,belo-horizonte-mg-montes-claros-mg,2026-03-16,174.39,212.0,156.83,212.23
@@ -45,9 +45,9 @@ antecedencia,trecho_unico,data,media_preco_atual,media_preco_referencia,mediana_
 1,belo-horizonte-mg-uberlandia-mg,2026-03-17,171.88,160.56,163.23,163.88
 1,belo-horizonte-mg-uberlandia-mg,2026-03-18,167.03,196.93,163.77,193.19
 1,belo-horizonte-mg-uberlandia-mg,2026-03-19,226.31,164.86,224.06,163.77
-1,belo-horizonte-mg-uberlandia-mg,2026-03-20,232.76,182.69,208.51,193.08
+1,belo-horizonte-mg-uberlandia-mg,2026-03-20,240.28,182.69,223.04,193.08
 1,belo-horizonte-mg-uberlandia-mg,2026-03-21,187.4,144.82,190.38,163.12
-1,belo-horizonte-mg-uberlandia-mg,2026-03-22,262.26,219.14,261.05,223.15
+1,belo-horizonte-mg-uberlandia-mg,2026-03-22,272.9,219.14,272.59,223.15
 0,campinas-sp-rio-de-janeiro-rj,2026-03-16,121.48,114.5,121.48,114.5
 0,campinas-sp-rio-de-janeiro-rj,2026-03-17,119.99,99.99,119.99,99.99
 0,campinas-sp-rio-de-janeiro-rj,2026-03-18,114.5,110.51,114.5,110.51
