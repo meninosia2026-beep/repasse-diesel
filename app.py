@@ -36,7 +36,6 @@ with st.expander("📂 Atualizar arquivos CSV", expanded=False):
         up_tiradentes = st.file_uploader("Feriado Tiradentes",  type="csv", key="up_tir")
 
 
-
 # ── LOAD DATA ─────────────────────────────────────────────────────────────────
 def load_file(upload, default_name):
     if upload:
@@ -60,15 +59,10 @@ if any_upload:
     now_sp = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M")
     update_label = f"Importado em {now_sp} · via upload manual"
 else:
-    # Busca data do último commit dos CSVs via API do GitHub
     try:
-        import urllib.request, json
-        # Detecta repo automaticamente a partir da variável de ambiente do Streamlit Cloud
-        repo = os.environ.get("STREAMLIT_SHARING_MODE", "")
-        # Tenta pegar do git log local (funciona no Streamlit Cloud)
         import subprocess
         result = subprocess.run(
-            ["git", "log", "-1", "--format=%ci", "--", "semanas_anteriores.csv", "data/semanas_anteriores.csv"],
+            ["git", "log", "-1", "--format=%ci", "--", "feriado_tiradentes.csv", "data/feriado_tiradentes.csv"],
             capture_output=True, text=True, cwd="."
         )
         if result.stdout.strip():
