@@ -1,0 +1,26 @@
+{
+  "periodos": [
+    {"key": "s16", "label": "16–22/03"},
+    {"key": "s23", "label": "23–29/03"}
+  ],
+  "feriados": [
+    {
+      "key": "pascoa",
+      "nome": "Páscoa",
+      "ref": "Carnaval",
+      "dias": [
+        {"label": "Ida (02/04)", "dateStr": "02"},
+        {"label": "Volta (05/04)", "dateStr": "05"}
+      ]
+    },
+    {
+      "key": "tiradentes",
+      "nome": "Tiradentes",
+      "ref": "Carnaval",
+      "dias": [
+        {"label": "Ida (17/04)", "dateStr": "17"},
+        {"label": "Volta (21/04)", "dateStr": "21"}
+      ]
+    }
+  ]
+}
