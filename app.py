@@ -378,7 +378,7 @@ function renderVisao(){{
     <div class="kpi-grid">
       <div class="kpi ${{avg>=5?'up':avg<=-5?'down':'warn'}}">
         <div class="kpi-lbl">Variação média geral</div>
-        <div class="kpi-val">${avgSign}${{avg.toFixed(1)}}%</div>
+        <div class="kpi-val">\${{avgSign2}}\${{avg.toFixed(1)}}%</div>
         <div class="kpi-desc">Todos os trechos e períodos</div>
       </div>
       <div class="kpi up">
