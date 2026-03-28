@@ -358,7 +358,8 @@ function renderVisao(){{
     signalText=`O mercado está sinalizando queda de preços em ${quedas} trecho(s). O trecho com maior redução é <strong>${{topQueda.tf}}</strong> com ${{topQueda.pct.toFixed(1)}}% abaixo da referência.`;
   }} else {{
     signalClass='neutral'; signalLabel='Mercado misto — monitorar';
-    signalText=`Sinais divergentes: ${altas} trecho(s) em alta e ${quedas} em queda. Variação média geral de ${avg>0?'+':''}${{avg.toFixed(1)}}%. Recomenda-se acompanhar a evolução semanal.`;
+    const avgSign=avg>0?'+':'';
+    signalText=`Sinais divergentes: ${altas} trecho(s) em alta e ${quedas} em queda. Variação média geral de ${avgSign}${{avg.toFixed(1)}}%. Recomenda-se acompanhar a evolução semanal.`;
   }}
 
   const top8 = all.slice(0,8);
@@ -374,7 +375,7 @@ function renderVisao(){{
     <div class="kpi-grid">
       <div class="kpi ${{avg>=5?'up':avg<=-5?'down':'warn'}}">
         <div class="kpi-lbl">Variação média geral</div>
-        <div class="kpi-val">${{avg>0?'+':''}}${{avg.toFixed(1)}}%</div>
+        <div class="kpi-val">${avgSign}${{avg.toFixed(1)}}%</div>
         <div class="kpi-desc">Todos os trechos e períodos</div>
       </div>
       <div class="kpi up">
