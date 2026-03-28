@@ -636,8 +636,10 @@ function renderTendencia(){{
 // ── FERIADOS ──────────────────────────────────────────────────────────────────
 function renderFeriados(){{
   const feriados=[
-    {{key:'pascoa',nome:'Páscoa',ref:'Carnaval',ida:'02/04',volta:'05/04'}},
-    {{key:'tiradentes',nome:'Tiradentes',ref:'Carnaval',ida:'17/04',volta:'21/04'}},
+    {{key:'pascoa',nome:'Páscoa',ref:'Carnaval',
+      dias:[{{label:'Ida (02/04)',dateStr:'02'}} ,{{label:'Volta (05/04)',dateStr:'05'}}]}},
+    {{key:'tiradentes',nome:'Tiradentes',ref:'Carnaval',
+      dias:[{{label:'Ida (17/04)',dateStr:'17'}},{{label:'Volta (21/04)',dateStr:'21'}}]}},
   ].filter(f=>INJECTED[f.key]);
 
   if(!feriados.length){{
@@ -645,63 +647,62 @@ function renderFeriados(){{
     return;
   }}
 
-  let html='';
-  html+=`<h2 class="stitle">Comparativo de feriados</h2>`;
-  html+=`<p class="sdesc">Comportamento da concorrência nos principais feriados vs. Carnaval como referência de demanda alta.</p>`;
-
-  // Side-by-side se tiver os dois
-  if(feriados.length===2){{
-    const agg0=aggByTrecho(INJECTED[feriados[0].key]).sort((a,b)=>b.pct-a.pct);
-    const agg1=aggByTrecho(INJECTED[feriados[1].key]).sort((a,b)=>b.pct-a.pct);
-    const trechos=new Set([...agg0.map(r=>r.trecho_unico),...agg1.map(r=>r.trecho_unico)]);
-
-    const rows=[...trechos].map(t=>{{
-      const r0=agg0.find(r=>r.trecho_unico===t);
-      const r1=agg1.find(r=>r.trecho_unico===t);
-      return{{t,tf:ts(t),p0:r0?r0.pct:null,p1:r1?r1.pct:null}};
-    }}).sort((a,b)=>Math.max(Math.abs(b.p0||0),Math.abs(b.p1||0))-Math.max(Math.abs(a.p0||0),Math.abs(a.p1||0)));
-
-    html+=`<div class="tc">
-      <div class="th2"><h3>Comparativo ${{feriados[0].nome}} vs ${{feriados[1].nome}}</h3>
-        <span style="font-size:12px;color:var(--muted)">Referência: Carnaval</span>
-      </div>
-      <table>
-        <thead><tr>
-          <th>Trecho</th>
-          <th>${{feriados[0].nome}} (${{feriados[0].ida}}/${{feriados[0].volta}})</th>
-          <th>${{feriados[1].nome}} (${{feriados[1].ida}}/${{feriados[1].volta}})</th>
-          <th>Δ entre feriados</th>
-        </tr></thead>
-        <tbody>${{rows.map(r=>{{
-          const delta=(r.p1!==null&&r.p0!==null)?r.p1-r.p0:null;
-          return`<tr>
-            <td class="tt">${{r.tf}}</td>
-            <td>${{fv(r.p0)}}</td>
-            <td>${{fv(r.p1)}}</td>
-            <td>${{fv(delta)}}</td>
-          </tr>`;
-        }}).join('')}}</tbody>
-      </table>
-    </div>`;
+  // Separa rows por dia (ida/volta) usando a coluna 'data'
+  function rowsByDay(rows, dateStr){{
+    return enrich(rows.filter(r=>r.data && String(r.data).includes('-'+dateStr+'-') || String(r.data).endsWith('-'+dateStr)));
   }}
 
-  // Individual por feriado
+  // Agrega por trecho para um subset de rows
+  function aggSubset(rows){{
+    const byT={{}};
+    rows.forEach(r=>{{
+      if(!byT[r.trecho_unico])byT[r.trecho_unico]=[];
+      byT[r.trecho_unico].push(r.pct||0);
+    }});
+    return Object.entries(byT).map(([t,pcts])=>{{
+      const avg=pcts.reduce((s,v)=>s+v,0)/pcts.length;
+      return{{trecho_unico:t,tf:ts(t),pct:avg}};
+    }}).sort((a,b)=>a.pct-b.pct);
+  }}
+
+  let html='';
+  html+='<h2 class="stitle">Comparativo de feriados por perna</h2>';
+  html+='<p class="sdesc">Variação por dia de pico — ida e volta separados para identificar assimetrias de precificação vs. Carnaval.</p>';
+
+  let chartCount=0;
   feriados.forEach(f=>{{
-    const agg=aggByTrecho(INJECTED[f.key]).sort((a,b)=>b.pct-a.pct);
-    const cid=`c-fer-${{f.key}}`;
-    html+=`
-      <h2 class="stitle" style="margin-top:28px">${{f.nome}} vs ${{f.ref}}</h2>
-      <p class="sdesc">Ida ${{f.ida}}, Volta ${{f.volta}} · Maior variação indica precificação acima da referência de alta demanda.</p>
-      <div class="cc">
-        <h3>Variação por trecho</h3>
-        <div class="cwrap" style="height:${{Math.max(280,agg.length*36)}}px"><canvas id="${{cid}}"></canvas></div>
-      </div>`;
-    setTimeout(()=>hbarChart(cid,
-      [...agg].sort((a,b)=>a.pct-b.pct).map(r=>r.tf),
-      [...agg].sort((a,b)=>a.pct-b.pct).map(r=>parseFloat(r.pct.toFixed(1))),
-      [...agg].sort((a,b)=>a.pct-b.pct).map(r=>r.pct>0?CUP:CDN),
-      Math.max(280,agg.length*36)
-    ),100);
+    html+='<h2 class="stitle" style="margin-top:28px">'+f.nome+' vs '+f.ref+'</h2>';
+
+    f.dias.forEach(dia=>{{
+      const subset=rowsByDay(INJECTED[f.key], dia.dateStr);
+      if(!subset.length)return;
+      const agg=aggSubset(subset);
+      const cid='c-fer-'+f.key+'-'+dia.dateStr;
+      chartCount++;
+
+      // Tabela por dia
+      const tblRows=agg.slice().reverse().map(r=>'<tr><td class="tt">'+r.tf+'</td><td>'+fv(r.pct)+'</td><td>'+movBadge(r.pct,0)+'</td></tr>').join('');
+
+      html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">';
+      html+='<div class="cc">';
+      html+='<h3>'+dia.label+'</h3>';
+      html+='<p class="cdesc">Variação vs. '+f.ref+' — perna '+dia.label.split(' ')[0].toLowerCase()+'</p>';
+      html+='<div class="cwrap" style="height:'+Math.max(240,agg.length*34)+'px"><canvas id="'+cid+'"></canvas></div>';
+      html+='</div>';
+      html+='<div class="tc" style="height:fit-content">';
+      html+='<div class="th2"><h3>Tabela — '+dia.label+'</h3></div>';
+      html+='<table><thead><tr><th>Trecho</th><th>Variação</th><th>Sinal</th></tr></thead>';
+      html+='<tbody>'+tblRows+'</tbody></table>';
+      html+='</div>';
+      html+='</div>';
+
+      setTimeout(()=>hbarChart(cid,
+        agg.map(r=>r.tf),
+        agg.map(r=>parseFloat(r.pct.toFixed(1))),
+        agg.map(r=>r.pct>0?CUP:CDN),
+        Math.max(240,agg.length*34)
+      ), chartCount*80);
+    }});
   }});
 
   document.getElementById('panel-feriados').innerHTML=html;
