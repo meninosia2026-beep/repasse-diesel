@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 
 st.set_page_config(
-    page_title="Inteligência de Mercado",
+    page_title="Acompanhamento Concorrentes",
     page_icon="📡",
     layout="wide",
     initial_sidebar_state="collapsed",
