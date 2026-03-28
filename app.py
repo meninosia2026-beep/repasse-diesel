@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 
 st.set_page_config(
-    page_title="Acompanhamento Concorrentes",
+    page_title="Inteligência de Mercado",
     page_icon="📡",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -49,6 +49,45 @@ df_s23        = load_file(up_s23,        "semana_23_a_29.csv")
 df_pascoa     = load_file(up_pascoa,     "feriado_pascoa.csv")
 df_tiradentes = load_file(up_tiradentes, "feriado_tiradentes.csv")
 
+# ── CARREGA CONFIG DE FERIADOS ────────────────────────────────────────────────
+import json as _json
+
+def load_config():
+    for folder in ["data", "."]:
+        path = os.path.join(folder, "config.json")
+        if os.path.exists(path):
+            with open(path) as f:
+                return _json.load(f)
+    # fallback padrão
+    return {
+        "periodos": [
+            {"key": "s16", "label": "16–22/03"},
+            {"key": "s23", "label": "23–29/03"}
+        ],
+        "feriados": [
+            {
+                "key": "pascoa",
+                "nome": "Páscoa",
+                "ref": "Carnaval",
+                "dias": [
+                    {"label": "Ida (02/04)", "dateStr": "02"},
+                    {"label": "Volta (05/04)", "dateStr": "05"}
+                ]
+            },
+            {
+                "key": "tiradentes",
+                "nome": "Tiradentes",
+                "ref": "Carnaval",
+                "dias": [
+                    {"label": "Ida (17/04)", "dateStr": "17"},
+                    {"label": "Volta (21/04)", "dateStr": "21"}
+                ]
+            }
+        ]
+    }
+
+cfg = load_config()
+
 any_upload = any([up_semanas, up_s16, up_s23, up_pascoa, up_tiradentes])
 if any_upload:
     now_sp = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M")
@@ -84,6 +123,7 @@ const INJECTED = {{
   tiradentes: {df_to_json(df_tiradentes)},
 }};
 const UPDATE_LABEL = "{update_label}";
+const CONFIG = {_json.dumps(cfg, ensure_ascii=False)};
 """
 
 html = f"""<!DOCTYPE html>
@@ -204,7 +244,7 @@ html = f"""<!DOCTYPE html>
 <div class="header">
   <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
     <div>
-      <div class="title">Monitor de Mercado </div>
+      <div class="title">Inteligência de Mercado — Rodoviário</div>
       <div class="subtitle">Monitoramento de movimentos de preço da concorrência por trecho</div>
     </div>
     <div style="display:flex;align-items:center;gap:6px;background:#E3F2E9;border:1px solid rgba(46,107,64,.2);border-radius:20px;padding:5px 12px;font-size:12px;color:#2E6B40;white-space:nowrap;margin-top:4px">
@@ -568,11 +608,7 @@ function renderInstavel(){{
 
 // ── TENDÊNCIA SEMANAL ─────────────────────────────────────────────────────────
 function renderTendencia(){{
-  const periods=[
-    {{key:'semanas',label:'Sem. ant.'}},
-    {{key:'s16',label:'16–22/03'}},
-    {{key:'s23',label:'23–29/03'}},
-  ];
+  const periods=[{{key:'semanas',label:'Sem. ant.'}},...CONFIG.periodos];
   const available=periods.filter(p=>INJECTED[p.key]);
   if(available.length<2){{
     document.getElementById('panel-tendencia').innerHTML='<div class="empty"><h3>Carregue ao menos 2 semanas</h3><p>Para ver tendência é necessário ter pelo menos 2 períodos semanais carregados.</p></div>';
@@ -635,12 +671,7 @@ function renderTendencia(){{
 
 // ── FERIADOS ──────────────────────────────────────────────────────────────────
 function renderFeriados(){{
-  const feriados=[
-    {{key:'pascoa',nome:'Páscoa',ref:'Carnaval',
-      dias:[{{label:'Ida (02/04)',dateStr:'02'}} ,{{label:'Volta (05/04)',dateStr:'05'}}]}},
-    {{key:'tiradentes',nome:'Tiradentes',ref:'Carnaval',
-      dias:[{{label:'Ida (17/04)',dateStr:'17'}},{{label:'Volta (21/04)',dateStr:'21'}}]}},
-  ].filter(f=>INJECTED[f.key]);
+  const feriados=CONFIG.feriados.filter(f=>INJECTED[f.key]);
 
   if(!feriados.length){{
     document.getElementById('panel-feriados').innerHTML='<div class="empty"><h3>Nenhum feriado carregado</h3><p>Carregue os arquivos de Páscoa e/ou Tiradentes.</p></div>';
