@@ -350,16 +350,19 @@ function renderVisao(){{
 
   // Signal
   let signalClass='', signalLabel='', signalText='';
+  const altaPct=topAlta?topAlta.pct:0;
+  const altaSign=altaPct>0?'+':'';
+  const quedaPct=topQueda?topQueda.pct:0;
+  const avgSign2=avg>0?'+':'';
   if(altas>quedas*2){{
     signalClass=''; signalLabel='Movimento de alta generalizado';
-    signalText=`O mercado está sinalizando pressão de alta em ${altas} trecho(s). O trecho com maior movimento é <strong>${{topAlta.tf}}</strong> com variação média de <strong>${{topAlta.pct>0?'+':''}}${{topAlta.pct.toFixed(1)}}%</strong> sobre a referência.`;
+    signalText='O mercado está sinalizando pressão de alta em '+altas+' trecho(s). O trecho com maior movimento é <strong>'+(topAlta?topAlta.tf:'–')+'</strong> com variação média de <strong>'+altaSign+altaPct.toFixed(1)+'%</strong> sobre a referência.';
   }} else if(quedas>altas*2){{
     signalClass='down'; signalLabel='Movimento de queda generalizado';
-    signalText=`O mercado está sinalizando queda de preços em ${quedas} trecho(s). O trecho com maior redução é <strong>${{topQueda.tf}}</strong> com ${{topQueda.pct.toFixed(1)}}% abaixo da referência.`;
+    signalText='O mercado está sinalizando queda de preços em '+quedas+' trecho(s). O trecho com maior redução é <strong>'+(topQueda?topQueda.tf:'–')+'</strong> com '+quedaPct.toFixed(1)+'% abaixo da referência.';
   }} else {{
     signalClass='neutral'; signalLabel='Mercado misto — monitorar';
-    const avgSign=avg>0?'+':'';
-    signalText=`Sinais divergentes: ${altas} trecho(s) em alta e ${quedas} em queda. Variação média geral de ${avgSign}${{avg.toFixed(1)}}%. Recomenda-se acompanhar a evolução semanal.`;
+    signalText='Sinais divergentes: '+altas+' trecho(s) em alta e '+quedas+' em queda. Variação média geral de '+avgSign2+avg.toFixed(1)+'%. Recomenda-se acompanhar a evolução semanal.';
   }}
 
   const top8 = all.slice(0,8);
