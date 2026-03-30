@@ -237,6 +237,17 @@ html = f"""<!DOCTYPE html>
   .spark-dots{{display:flex;align-items:center;gap:3px;flex:1}}
   .spark-dot{{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;flex-shrink:0}}
   .spark-val{{font-size:12px;font-weight:600;min-width:52px;text-align:right}}
+
+  /* DRILL-DOWN */
+  .drill-btn{{background:none;border:1px solid var(--border-strong);border-radius:6px;padding:2px 10px;font-size:11px;color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s}}
+  .drill-btn:hover{{background:var(--surface2);color:var(--text)}}
+  .drill-row{{display:none;background:var(--surface2)}}
+  .drill-row.open{{display:table-row}}
+  .drill-inner{{padding:10px 14px}}
+  .drill-table{{width:100%;border-collapse:collapse;font-size:12px}}
+  .drill-table th{{padding:6px 10px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);border-bottom:1px solid var(--border)}}
+  .drill-table td{{padding:6px 10px;border-bottom:1px solid var(--border);color:var(--text)}}
+  .drill-table tr:last-child td{{border-bottom:none}}
 </style>
 </head>
 <body>
@@ -488,13 +499,118 @@ function renderVisao(){{
 }}
 
 // ── MAIORES ALTAS ─────────────────────────────────────────────────────────────
+// Retorna todas as obs de um trecho em todos os períodos com data/antecedência
+function getPeriodoLabel(k){{
+  if(k==='semanas')return'Sem. ant.';
+  const found=[...CONFIG.periodos,...CONFIG.feriados].find(p=>p.key===k);
+  return found?found.nome||found.label:k;
+}}
+
+function getDrillRows(trecho_unico){{
+  const keys=['semanas','s16','s23','pascoa','tiradentes'];
+  const rows=[];
+  keys.forEach(k=>{{
+    if(!INJECTED[k])return;
+    INJECTED[k].filter(r=>r.trecho_unico===trecho_unico).forEach(r=>{{
+      const pct=vari(r.media_preco_atual,r.media_preco_referencia);
+      rows.push({{
+        periodo:getPeriodoLabel(k),
+        periodoKey:k,
+        data:r.data||'–',
+        antecedencia:r.antecedencia!=null?'D'+r.antecedencia:'–',
+        atual:r.media_preco_atual,
+        ref:r.media_preco_referencia,
+        pct
+      }});
+    }});
+  }});
+  return rows.sort((a,b)=>Math.abs(b.pct||0)-Math.abs(a.pct||0));
+}}
+
+function drillSummary(trecho_unico){{
+  // Agrega por período — mostra média de cada período para identificar qual puxa
+  const keys=['semanas','s16','s23','pascoa','tiradentes'];
+  const summary=[];
+  keys.forEach(k=>{{
+    if(!INJECTED[k])return;
+    const recs=INJECTED[k].filter(r=>r.trecho_unico===trecho_unico);
+    if(!recs.length)return;
+    const avg=recs.reduce((s,r)=>s+(vari(r.media_preco_atual,r.media_preco_referencia)||0),0)/recs.length;
+    summary.push({{label:getPeriodoLabel(k),pct:avg,n:recs.length}});
+  }});
+  return summary;
+}}
+
+function toggleDrill(id){{
+  const el=document.getElementById(id);
+  if(el)el.classList.toggle('open');
+}}
+
+function drillTable(trecho_unico){{
+  const summary=drillSummary(trecho_unico);
+  const rows=getDrillRows(trecho_unico);
+  if(!rows.length)return '<p style="padding:10px;color:var(--muted);font-size:12px">Sem detalhamento disponível.</p>';
+
+  // Resumo por período — identifica qual período puxa o resultado
+  const summaryHtml=summary.map(s=>{{
+    const bar=Math.min(Math.abs(s.pct)*2,100);
+    const col=s.pct>5?CUP:s.pct<-5?CDN:CGR;
+    return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <span style="font-size:11px;color:var(--muted);min-width:90px">${{s.label}}</span>
+      <div style="flex:1;background:var(--surface2);border-radius:3px;height:8px;overflow:hidden">
+        <div style="width:${{bar}}%;height:100%;background:${{col}};border-radius:3px"></div>
+      </div>
+      <span style="font-size:11px;font-weight:600;min-width:50px;text-align:right;color:${{col}}">${{s.pct>0?'+':''}}${{s.pct.toFixed(1)}}%</span>
+      <span style="font-size:10px;color:var(--faint)">${{s.n}} obs.</span>
+    </div>`;
+  }}).join('');
+
+  // Detalhe por data — top 10 mais extremos
+  const top=rows.slice(0,10);
+  const trs=top.map(r=>`
+    <tr>
+      <td style="color:var(--muted);font-size:11px">${{r.periodo}}</td>
+      <td style="font-size:11px">${{r.data}}</td>
+      <td style="color:var(--muted);font-size:11px">${{r.antecedencia}}</td>
+      <td style="font-size:11px">R$ ${{parseFloat(r.ref).toFixed(2).replace('.',',')}}</td>
+      <td style="font-size:11px">R$ ${{parseFloat(r.atual).toFixed(2).replace('.',',')}}</td>
+      <td>${{fv(r.pct)}}</td>
+    </tr>`).join('');
+
+  return`
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin-bottom:6px">Variação por período</div>
+      ${{summaryHtml}}
+    </div>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin-bottom:6px;margin-top:12px">Top datas mais relevantes</div>
+    <table class="drill-table">
+      <thead><tr><th>Período</th><th>Data</th><th>Antec.</th><th>Ref.</th><th>Atual</th><th>Var.</th></tr></thead>
+      <tbody>${{trs}}</tbody>
+    </table>`;
+}}
+
 function renderAltas(){{
   const all=allAgg().filter(r=>r.pct>0).sort((a,b)=>b.pct-a.pct);
   if(!all.length){{document.getElementById('panel-altas').innerHTML='<div class="empty"><h3>Nenhuma alta identificada</h3></div>';return;}}
 
+  const tbody=all.map((r,i)=>{{
+    const did='drill-alta-'+i;
+    return`
+      <tr>
+        <td class="tt">${{r.tf}}</td>
+        <td>${{fv(r.pct)}}</td>
+        <td style="font-size:12px;color:var(--muted)">${{r.stddev.toFixed(1)}}σ</td>
+        <td>${{movBadge(r.pct,r.stddev)}}</td>
+        <td><button class="drill-btn" onclick="toggleDrill('${{did}}')">+ ver datas</button></td>
+      </tr>
+      <tr id="${{did}}" class="drill-row">
+        <td colspan="5"><div class="drill-inner">${{drillTable(r.trecho_unico)}}</div></td>
+      </tr>`;
+  }}).join('');
+
   document.getElementById('panel-altas').innerHTML=`
     <h2 class="stitle">Trechos com maiores altas</h2>
-    <p class="sdesc">Concorrentes aumentando preços — ordenado por maior variação positiva média.</p>
+    <p class="sdesc">Concorrentes aumentando preços — clique em "ver datas" para ver quais datas estão puxando o resultado.</p>
     <div class="cc">
       <h3>Variação positiva por trecho</h3>
       <p class="cdesc">Média de todos os períodos carregados</p>
@@ -503,17 +619,10 @@ function renderAltas(){{
       </div>
     </div>
     <div class="tc">
-      <div class="th2"><h3>Detalhamento</h3></div>
+      <div class="th2"><h3>Detalhamento — clique em "ver datas" para expandir</h3></div>
       <table>
-        <thead><tr><th>Trecho</th><th>Variação média</th><th>Volatilidade</th><th>Sinal</th></tr></thead>
-        <tbody>${{all.map(r=>`
-          <tr>
-            <td class="tt">${{r.tf}}</td>
-            <td>${{fv(r.pct)}}</td>
-            <td style="font-size:12px;color:var(--muted)">${{r.stddev.toFixed(1)}}σ</td>
-            <td>${{movBadge(r.pct,r.stddev)}}</td>
-          </tr>`).join('')}}
-        </tbody>
+        <thead><tr><th>Trecho</th><th>Variação média</th><th>Volatilidade</th><th>Sinal</th><th></th></tr></thead>
+        <tbody>${{tbody}}</tbody>
       </table>
     </div>`;
 
@@ -526,9 +635,24 @@ function renderQuedas(){{
   const all=allAgg().filter(r=>r.pct<0).sort((a,b)=>a.pct-b.pct);
   if(!all.length){{document.getElementById('panel-quedas').innerHTML='<div class="empty"><h3>Nenhuma queda identificada</h3></div>';return;}}
 
+  const tbody=all.map((r,i)=>{{
+    const did='drill-queda-'+i;
+    return`
+      <tr>
+        <td class="tt">${{r.tf}}</td>
+        <td>${{fv(r.pct)}}</td>
+        <td style="font-size:12px;color:var(--muted)">${{r.stddev.toFixed(1)}}σ</td>
+        <td>${{movBadge(r.pct,r.stddev)}}</td>
+        <td><button class="drill-btn" onclick="toggleDrill('${{did}}')">+ ver datas</button></td>
+      </tr>
+      <tr id="${{did}}" class="drill-row">
+        <td colspan="5"><div class="drill-inner">${{drillTable(r.trecho_unico)}}</div></td>
+      </tr>`;
+  }}).join('');
+
   document.getElementById('panel-quedas').innerHTML=`
     <h2 class="stitle">Trechos com maiores quedas</h2>
-    <p class="sdesc">Concorrentes reduzindo preços — pode indicar estratégia de ganho de share ou demanda fraca.</p>
+    <p class="sdesc">Concorrentes reduzindo preços — clique em "ver datas" para ver quais datas estão puxando o resultado.</p>
     <div class="cc">
       <h3>Variação negativa por trecho</h3>
       <p class="cdesc">Média de todos os períodos carregados</p>
@@ -537,17 +661,10 @@ function renderQuedas(){{
       </div>
     </div>
     <div class="tc">
-      <div class="th2"><h3>Detalhamento</h3></div>
+      <div class="th2"><h3>Detalhamento — clique em "ver datas" para expandir</h3></div>
       <table>
-        <thead><tr><th>Trecho</th><th>Variação média</th><th>Volatilidade</th><th>Sinal</th></tr></thead>
-        <tbody>${{all.map(r=>`
-          <tr>
-            <td class="tt">${{r.tf}}</td>
-            <td>${{fv(r.pct)}}</td>
-            <td style="font-size:12px;color:var(--muted)">${{r.stddev.toFixed(1)}}σ</td>
-            <td>${{movBadge(r.pct,r.stddev)}}</td>
-          </tr>`).join('')}}
-        </tbody>
+        <thead><tr><th>Trecho</th><th>Variação média</th><th>Volatilidade</th><th>Sinal</th><th></th></tr></thead>
+        <tbody>${{tbody}}</tbody>
       </table>
     </div>`;
 
