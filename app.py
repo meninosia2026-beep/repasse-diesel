@@ -1,880 +1,519 @@
+"""
+Dashboard de Acompanhamento de Feriados — Streamlit
+Lê CSVs do GitHub (gerados pelo Databricks) e exibe curvas de demanda.
+"""
+
 import streamlit as st
 import pandas as pd
-import os
+import plotly.graph_objects as go
+import plotly.express as px
+import requests
+import json
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
+# ── CONFIGURAÇÃO ──────────────────────────────────────────────────────────────
+GITHUB_RAW  = "https://raw.githubusercontent.com/seu-org/seu-repo/main"
+CONFIG_URL  = f"{GITHUB_RAW}/data/config.json"
 
 st.set_page_config(
-    page_title="Inteligência de Mercado",
-    page_icon="📡",
+    page_title="Curva de Feriados",
+    page_icon="📈",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
+# ── ESTILO ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    [data-testid="stAppViewContainer"] > .main { padding: 0 !important; }
-    [data-testid="stHeader"] { display: none; }
-    .block-container { padding: 0 !important; max-width: 100% !important; }
-    section[data-testid="stSidebar"] { display: none !important; }
-    [data-testid="collapsedControl"] { display: none !important; }
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+
+html, body, [class*="css"] { font-family: 'IBM Plex Sans', sans-serif; }
+
+.stApp { background: #0d0f14; color: #e8eaf0; }
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background: #13161e;
+    border-right: 1px solid #1e2230;
+}
+
+/* Cards de métrica */
+.metric-card {
+    background: #13161e;
+    border: 1px solid #1e2230;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+}
+.metric-label {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #6b7280;
+    font-family: 'IBM Plex Mono', monospace;
+    margin-bottom: 4px;
+}
+.metric-value {
+    font-size: 28px;
+    font-weight: 600;
+    font-family: 'IBM Plex Mono', monospace;
+    color: #e8eaf0;
+}
+.metric-value.green  { color: #34d399; }
+.metric-value.red    { color: #f87171; }
+.metric-value.yellow { color: #fbbf24; }
+
+/* Badges */
+.badge {
+    display: inline-block;
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.08em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+.badge-green  { background: #064e3b; color: #34d399; }
+.badge-red    { background: #450a0a; color: #f87171; }
+.badge-yellow { background: #451a03; color: #fbbf24; }
+.badge-gray   { background: #1e2230; color: #9ca3af; }
+
+/* Títulos */
+h1, h2, h3 { font-family: 'IBM Plex Mono', monospace; }
+h1 { font-size: 20px; font-weight: 600; color: #e8eaf0; letter-spacing: -0.02em; }
+h2 { font-size: 13px; font-weight: 600; color: #6b7280; letter-spacing: 0.1em; text-transform: uppercase; }
+
+/* Tabela */
+.stDataFrame { border: 1px solid #1e2230; border-radius: 8px; }
+
+/* Divider */
+hr { border-color: #1e2230; }
+
+/* Atualizado em */
+.updated-tag {
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: #4b5563;
+}
 </style>
 """, unsafe_allow_html=True)
 
-with st.expander("📂 Atualizar arquivos CSV", expanded=False):
-    st.caption("Substitua qualquer arquivo para atualizar a análise.")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        up_semanas    = st.file_uploader("Semanas anteriores",  type="csv", key="up_sem")
-        up_s16        = st.file_uploader("Semana 16-22/03",     type="csv", key="up_s16")
-    with col2:
-        up_s23        = st.file_uploader("Semana 23-29/03",     type="csv", key="up_s23")
-        up_pascoa     = st.file_uploader("Feriado Páscoa",      type="csv", key="up_pas")
-    with col3:
-        up_tiradentes = st.file_uploader("Feriado Tiradentes",  type="csv", key="up_tir")
 
-def load_file(upload, default_name):
-    if upload:
-        return pd.read_csv(upload)
-    for folder in ["data", "."]:
-        path = os.path.join(folder, default_name)
-        if os.path.exists(path):
-            return pd.read_csv(path)
-    return None
-
-df_semanas    = load_file(up_semanas,    "semanas_anteriores.csv")
-df_s16        = load_file(up_s16,        "semana_16_a_22.csv")
-df_s23        = load_file(up_s23,        "semana_23_a_29.csv")
-df_pascoa     = load_file(up_pascoa,     "feriado_pascoa.csv")
-df_tiradentes = load_file(up_tiradentes, "feriado_tiradentes.csv")
-
-# ── CARREGA CONFIG DE FERIADOS ────────────────────────────────────────────────
-import json as _json
-
+# ── FUNÇÕES DE DADOS ──────────────────────────────────────────────────────────
+@st.cache_data(ttl=120)   # recarrega a cada 2 min
 def load_config():
-    for folder in ["data", "."]:
-        path = os.path.join(folder, "config.json")
-        if os.path.exists(path):
-            with open(path) as f:
-                return _json.load(f)
-    # fallback padrão
-    return {
-        "periodos": [
-            {"key": "s16", "label": "16–22/03"},
-            {"key": "s23", "label": "23–29/03"}
-        ],
-        "feriados": [
-            {
-                "key": "pascoa",
-                "nome": "Páscoa",
-                "ref": "Carnaval",
-                "dias": [
-                    {"label": "Ida (02/04)", "dateStr": "02"},
-                    {"label": "Volta (05/04)", "dateStr": "05"}
-                ]
-            },
-            {
-                "key": "tiradentes",
-                "nome": "Tiradentes",
-                "ref": "Carnaval",
-                "dias": [
-                    {"label": "Ida (17/04)", "dateStr": "17"},
-                    {"label": "Volta (21/04)", "dateStr": "21"}
-                ]
-            }
-        ]
-    }
-
-cfg = load_config()
-
-any_upload = any([up_semanas, up_s16, up_s23, up_pascoa, up_tiradentes])
-if any_upload:
-    now_sp = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M")
-    update_label = f"Importado em {now_sp} · via upload manual"
-else:
     try:
-        import subprocess
-        result = subprocess.run(
-            ["git", "log", "-1", "--format=%ci", "--", "feriado_tiradentes.csv", "data/feriado_tiradentes.csv"],
-            capture_output=True, text=True, cwd="."
+        r = requests.get(CONFIG_URL, timeout=10)
+        if r.status_code != 200:
+            return {"feriados": [], "_erro": f"HTTP {r.status_code} ao buscar config.json"}
+        text = r.text.strip()
+        if not text:
+            return {"feriados": [], "_erro": "config.json está vazio no GitHub"}
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        return {"feriados": [], "_erro": f"config.json inválido: {e}"}
+    except Exception as e:
+        return {"feriados": [], "_erro": f"Erro de conexão: {e}"}
+
+@st.cache_data(ttl=120)
+def load_csv(url: str) -> pd.DataFrame:
+    try:
+        df = pd.read_csv(url)
+        # Normaliza tipos
+        for col in ["antecedencia", "dia_da_semana"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        for col in ["occ_atual", "lf_atual", "lf_proj_2026", "ratio_vs_proj",
+                    "rpk_proj_2026", "ask_proj_2026", "rpk", "ask",
+                    "price_cc", "preco_praticado", "mult_final", "mult_flutuacao"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        if "data" in df.columns:
+            df["data"] = pd.to_datetime(df["data"], errors="coerce")
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar CSV: {e}")
+        return pd.DataFrame()
+
+def color_ratio(val):
+    if pd.isna(val): return "badge-gray", "–"
+    label = f"{val:.2f}x"
+    if val >= 1.1:   return "badge-green",  label
+    if val >= 0.9:   return "badge-yellow", label
+    return "badge-red", label
+
+def fmt_pct(val):
+    if pd.isna(val): return "–"
+    return f"{val:.1%}"
+
+def fmt_brl(val):
+    if pd.isna(val): return "–"
+    return f"R$ {val:,.2f}"
+
+
+# ── SIDEBAR ───────────────────────────────────────────────────────────────────
+config   = load_config()
+feriados = config.get("feriados", [])
+_cfg_err = config.get("_erro")
+
+with st.sidebar:
+    st.markdown("### 📅 Feriado")
+
+    # ── Mostra aviso se config.json falhou, mas não trava o app ──
+    if _cfg_err:
+        st.warning(f"⚠️ config.json: {_cfg_err}")
+
+    # ── Modo manual: cola a URL do CSV direto ─────────────────────
+    usar_manual = st.toggle("Carregar CSV por URL manual", value=(not feriados))
+
+    if usar_manual or not feriados:
+        csv_url_manual = st.text_input(
+            "URL do CSV (raw GitHub)",
+            placeholder=f"{GITHUB_RAW}/data/feriado_tiradentes_2026.csv",
         )
-        if result.stdout.strip():
-            from datetime import datetime as dt
-            git_date = dt.fromisoformat(result.stdout.strip())
-            git_date_sp = git_date.astimezone(ZoneInfo("America/Sao_Paulo"))
-            update_label = f"Atualizado em {git_date_sp.strftime('%d/%m/%Y %H:%M')} · via Databricks"
-        else:
-            update_label = "via Databricks"
-    except Exception:
-        update_label = "via Databricks"
-
-def df_to_json(df):
-    if df is None:
-        return "null"
-    return df.to_json(orient="records")
-
-data_js = f"""
-const INJECTED = {{
-  semanas:    {df_to_json(df_semanas)},
-  s16:        {df_to_json(df_s16)},
-  s23:        {df_to_json(df_s23)},
-  pascoa:     {df_to_json(df_pascoa)},
-  tiradentes: {df_to_json(df_tiradentes)},
-}};
-const UPDATE_LABEL = "{update_label}";
-const CONFIG = {_json.dumps(cfg, ensure_ascii=False)};
-"""
-
-html = f"""<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
-  :root {{
-    --bg:#F7F5F0;--surface:#fff;--surface2:#F0EDE6;
-    --border:rgba(0,0,0,.08);--border-strong:rgba(0,0,0,.15);
-    --text:#1A1A18;--muted:#6B6963;--faint:#9C9A93;
-    --up:#C8402A;--up-l:#FAE8E4;
-    --down:#2E6B40;--down-l:#E3F2E9;
-    --warn:#B07A10;--warn-l:#FDF3DC;
-    --neutral:#4A4A46;--neutral-l:#EDECE9;
-    --r:10px;--rl:16px;
-  }}
-  *{{box-sizing:border-box;margin:0;padding:0}}
-  body{{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6}}
-  .header{{background:var(--surface);border-bottom:1px solid var(--border);padding:22px 28px 18px}}
-  .title{{font-family:'DM Serif Display',serif;font-size:22px;font-weight:400;letter-spacing:-.3px}}
-  .subtitle{{font-size:13px;color:var(--muted);margin-top:3px}}
-  .tabs{{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;display:flex;overflow-x:auto}}
-  .tab{{padding:12px 16px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s}}
-  .tab:hover{{color:var(--text)}}
-  .tab.active{{color:var(--text);border-bottom-color:var(--up)}}
-  .main{{padding:24px 28px}}
-  .panel{{display:none}}.panel.active{{display:block}}
-
-  /* SIGNAL CARD */
-  .signal{{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--up);border-radius:var(--rl);padding:20px 24px;margin-bottom:18px}}
-  .signal.down{{border-left-color:var(--down)}}
-  .signal.neutral{{border-left-color:var(--warn)}}
-  .signal-lbl{{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--up);margin-bottom:7px}}
-  .signal.down .signal-lbl{{color:var(--down)}}
-  .signal.neutral .signal-lbl{{color:var(--warn)}}
-  .signal-title{{font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:9px;line-height:1.35}}
-  .signal-body{{font-size:13px;color:var(--muted);line-height:1.7}}
-
-  /* KPIs */
-  .kpi-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:18px}}
-  .kpi{{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}}
-  .kpi-lbl{{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}}
-  .kpi-val{{font-size:21px;font-weight:600;line-height:1;margin-bottom:3px}}
-  .kpi-desc{{font-size:12px;color:var(--muted)}}
-  .kpi.up   .kpi-val{{color:var(--up)}}
-  .kpi.down .kpi-val{{color:var(--down)}}
-  .kpi.warn .kpi-val{{color:var(--warn)}}
-
-  /* CARDS GRID */
-  .ig{{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:18px}}
-  .ic{{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}}
-  .ic h4{{font-size:13px;font-weight:600;margin-bottom:6px}}
-  .ic p{{font-size:13px;color:var(--muted);line-height:1.6}}
-
-  /* CHART / TABLE CONTAINERS */
-  .cc{{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:20px;margin-bottom:16px}}
-  .cc h3{{font-size:14px;font-weight:600;margin-bottom:3px}}
-  .cdesc{{font-size:12px;color:var(--muted);margin-bottom:16px}}
-  .cwrap{{position:relative;width:100%}}
-  .tc{{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:16px}}
-  .th2{{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}}
-  .th2 h3{{font-size:14px;font-weight:600}}
-
-  /* FILTERS */
-  .fr{{display:flex;gap:5px;flex-wrap:wrap}}
-  .fc{{padding:3px 10px;border-radius:20px;border:1px solid var(--border-strong);font-size:12px;cursor:pointer;transition:all .15s;background:var(--surface);color:var(--muted);font-family:'DM Sans',sans-serif}}
-  .fc:hover{{background:var(--surface2)}}
-  .fc.active{{background:var(--text);color:#fff;border-color:var(--text)}}
-  .fc.cu{{background:var(--up-l);color:var(--up);border-color:rgba(200,64,42,.2)}}
-  .fc.cu.active{{background:var(--up);color:#fff}}
-  .fc.cd{{background:var(--down-l);color:var(--down);border-color:rgba(46,107,64,.2)}}
-  .fc.cd.active{{background:var(--down);color:#fff}}
-  .fc.cw{{background:var(--warn-l);color:var(--warn);border-color:rgba(176,122,16,.2)}}
-  .fc.cw.active{{background:var(--warn);color:#fff}}
-
-  /* TABLE */
-  table{{width:100%;border-collapse:collapse;font-size:13px}}
-  thead th{{padding:9px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);background:var(--surface2);border-bottom:1px solid var(--border)}}
-  tbody tr{{border-bottom:1px solid var(--border);transition:background .1s}}
-  tbody tr:last-child{{border-bottom:none}}
-  tbody tr:hover{{background:var(--surface2)}}
-  tbody td{{padding:9px 14px}}
-  .tt{{font-weight:500}}
-
-  /* BADGES */
-  .badge{{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}}
-  .b-alta   {{background:var(--up-l);color:var(--up)}}
-  .b-queda  {{background:var(--down-l);color:var(--down)}}
-  .b-instavel{{background:var(--warn-l);color:var(--warn)}}
-  .b-estavel{{background:var(--neutral-l);color:var(--neutral)}}
-
-  /* VAR COLORS */
-  .vu{{color:var(--up);font-weight:600}}
-  .vd{{color:var(--down);font-weight:600}}
-  .vf{{color:var(--muted)}}
-
-  .stitle{{font-family:'DM Serif Display',serif;font-size:17px;font-weight:400;margin-bottom:5px;margin-top:24px}}
-  .stitle:first-child{{margin-top:0}}
-  .sdesc{{font-size:13px;color:var(--muted);margin-bottom:16px}}
-  .empty{{text-align:center;padding:50px 20px;color:var(--muted)}}
-  .empty h3{{font-size:15px;font-weight:500;margin-bottom:7px}}
-  footer{{text-align:center;padding:18px;font-size:12px;color:var(--faint);border-top:1px solid var(--border);background:var(--surface);margin-top:28px}}
-
-  /* TREND SPARKLINE */
-  .spark-row{{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)}}
-  .spark-row:last-child{{border-bottom:none}}
-  .spark-label{{font-size:12px;font-weight:500;min-width:160px}}
-  .spark-dots{{display:flex;align-items:center;gap:3px;flex:1}}
-  .spark-dot{{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;flex-shrink:0}}
-  .spark-val{{font-size:12px;font-weight:600;min-width:52px;text-align:right}}
-
-  /* DRILL-DOWN */
-  .drill-btn{{background:none;border:1px solid var(--border-strong);border-radius:6px;padding:2px 10px;font-size:11px;color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s}}
-  .drill-btn:hover{{background:var(--surface2);color:var(--text)}}
-  .drill-row{{display:none;background:var(--surface2)}}
-  .drill-row.open{{display:table-row}}
-  .drill-inner{{padding:10px 14px}}
-  .drill-table{{width:100%;border-collapse:collapse;font-size:12px}}
-  .drill-table th{{padding:6px 10px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);border-bottom:1px solid var(--border)}}
-  .drill-table td{{padding:6px 10px;border-bottom:1px solid var(--border);color:var(--text)}}
-  .drill-table tr:last-child td{{border-bottom:none}}
-</style>
-</head>
-<body>
-
-<div class="header">
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
-    <div>
-      <div class="title">Acompanhamento de mercado — Rodoviário</div>
-      <div class="subtitle">Monitoramento de movimentos de preço da concorrência por trecho</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;background:#E3F2E9;border:1px solid rgba(46,107,64,.2);border-radius:20px;padding:5px 12px;font-size:12px;color:#2E6B40;white-space:nowrap;margin-top:4px">
-      <span style="width:7px;height:7px;border-radius:50%;background:#2E6B40;display:inline-block"></span>
-      <span id="update-text">carregando...</span>
-    </div>
-  </div>
-</div>
-
-<div class="tabs">
-  <div class="tab active" onclick="switchTab('visao',this)">Visão geral</div>
-  <div class="tab" onclick="switchTab('altas',this)">🔺 Maiores altas</div>
-  <div class="tab" onclick="switchTab('quedas',this)">🔻 Maiores quedas</div>
-  <div class="tab" onclick="switchTab('instavel',this)">⚡ Comportamento instável</div>
-  <div class="tab" onclick="switchTab('tendencia',this)">📈 Tendência semanal</div>
-  <div class="tab" onclick="switchTab('feriados',this)">🎉 Feriados</div>
-</div>
-
-<div class="main">
-  <div id="panel-visao"     class="panel active"></div>
-  <div id="panel-altas"     class="panel"></div>
-  <div id="panel-quedas"    class="panel"></div>
-  <div id="panel-instavel"  class="panel"></div>
-  <div id="panel-tendencia" class="panel"></div>
-  <div id="panel-feriados"  class="panel"></div>
-</div>
-
-<footer>Referência base: semana 23/02–01/03/2026 · Monitoramento contínuo de movimentos de mercado</footer>
-
-<script>
-{data_js}
-
-const CI={{}};
-const CUP='#C8402A', CDN='#2E6B40', CWN='#B07A10', CGR='#9C9A93';
-
-function vari(a,r){{return(!r||r==0)?null:((a-r)/r)*100}}
-function fv(p){{
-  if(p===null)return'<span class="vf">–</span>';
-  const s=p>0?'+':'';
-  return`<span class="${{p>0?'vu':p<0?'vd':'vf'}}">${{s}}${{p.toFixed(1)}}%</span>`;
-}}
-function fb(v){{return'R$ '+parseFloat(v).toFixed(2).replace('.',',')}}
-function ts(t){{return t.split('-').filter(p=>p.length>2).map(p=>p[0].toUpperCase()+p.slice(1)).join(' › ')}}
-
-function enrich(rows){{
-  return rows.map(r=>{{
-    const p=vari(r.media_preco_atual,r.media_preco_referencia);
-    return{{...r,pct:p,tf:ts(r.trecho_unico)}};
-  }});
-}}
-
-// Agrega por trecho — média de todas as obs de um período
-function aggByTrecho(rows){{
-  const byT={{}};
-  enrich(rows).forEach(r=>{{
-    if(!byT[r.trecho_unico])byT[r.trecho_unico]=[];
-    byT[r.trecho_unico].push(r.pct||0);
-  }});
-  return Object.entries(byT).map(([t,pcts])=>{{
-    const avg=pcts.reduce((s,v)=>s+v,0)/pcts.length;
-    return{{trecho_unico:t,tf:ts(t),pct:avg,n:pcts.length,
-      stddev:Math.sqrt(pcts.map(v=>(v-avg)**2).reduce((s,v)=>s+v,0)/pcts.length)}};
-  }});
-}}
-
-// Todos os períodos combinados
-function allAgg(){{
-  const keys=['semanas','s16','s23','pascoa','tiradentes'];
-  const combined={{}};
-  keys.forEach(k=>{{
-    if(!INJECTED[k])return;
-    aggByTrecho(INJECTED[k]).forEach(r=>{{
-      if(!combined[r.trecho_unico])combined[r.trecho_unico]=[];
-      combined[r.trecho_unico].push(r.pct);
-    }});
-  }});
-  return Object.entries(combined).map(([t,pcts])=>{{
-    const avg=pcts.reduce((s,v)=>s+v,0)/pcts.length;
-    const stddev=Math.sqrt(pcts.map(v=>(v-avg)**2).reduce((s,v)=>s+v,0)/pcts.length);
-    return{{trecho_unico:t,tf:ts(t),pct:avg,stddev,n:pcts.length}};
-  }}).sort((a,b)=>b.pct-a.pct);
-}}
-
-function dotColor(pct){{
-  if(pct>10)return CUP;
-  if(pct>3)return'#E07050';
-  if(pct>-3)return CGR;
-  if(pct>-10)return'#50A070';
-  return CDN;
-}}
-
-function movBadge(pct,std){{
-  if(std>10)return'<span class="badge b-instavel">⚡ Instável</span>';
-  if(pct>=5)return'<span class="badge b-alta">🔺 Em alta</span>';
-  if(pct<=-5)return'<span class="badge b-queda">🔻 Em queda</span>';
-  return'<span class="badge b-estavel">— Estável</span>';
-}}
-
-function destroyChart(id){{if(CI[id]){{CI[id].destroy();delete CI[id]}}}}
-
-function hbarChart(id,labels,data,colors,h){{
-  destroyChart(id);
-  setTimeout(()=>{{
-    const ctx=document.getElementById(id);if(!ctx)return;
-    CI[id]=new Chart(ctx,{{type:'bar',
-      data:{{labels,datasets:[{{data,backgroundColor:colors,borderRadius:4,borderSkipped:false}}]}},
-      options:{{indexAxis:'y',responsive:true,maintainAspectRatio:false,
-        plugins:{{legend:{{display:false}},tooltip:{{callbacks:{{label:c=>`${{c.raw>0?'+':''}}${{c.raw.toFixed(1)}}%`}}}}}},
-        scales:{{
-          x:{{grid:{{color:'rgba(0,0,0,0.05)'}},ticks:{{callback:v=>`${{v>0?'+':''}}${{v.toFixed(0)}}%`,font:{{size:11}}}},
-             zeroline:true,zerolinecolor:'rgba(0,0,0,0.2)'}},
-          y:{{grid:{{display:false}},ticks:{{font:{{size:11}},color:'#6B6963'}}}}
-        }}
-      }}
-    }});
-  }},50);
-}}
-
-function switchTab(key,el){{
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById('panel-'+key).classList.add('active');
-  renderPanel(key);
-}}
-
-// ── VISÃO GERAL ──────────────────────────────────────────────────────────────
-function renderVisao(){{
-  const all=allAgg();
-  if(!all.length){{
-    document.getElementById('panel-visao').innerHTML='<div class="empty"><h3>Nenhum dado carregado</h3><p>Carregue os arquivos CSV para visualizar a análise.</p></div>';
-    return;
-  }}
-
-  const altas  = all.filter(r=>r.pct>=5).length;
-  const quedas = all.filter(r=>r.pct<=-5).length;
-  const instaveis = all.filter(r=>r.stddev>10).length;
-  const avg = all.reduce((s,r)=>s+r.pct,0)/all.length;
-
-  const topAlta  = all[0];
-  const topQueda = [...all].sort((a,b)=>a.pct-b.pct)[0];
-  const topInst  = [...all].sort((a,b)=>b.stddev-a.stddev)[0];
-
-  // Signal
-  let signalClass='', signalLabel='', signalText='';
-  const altaPct=topAlta?topAlta.pct:0;
-  const altaSign=altaPct>0?'+':'';
-  const quedaPct=topQueda?topQueda.pct:0;
-  const avgSign2=avg>0?'+':'';
-  if(altas>quedas*2){{
-    signalClass=''; signalLabel='Movimento de alta generalizado';
-    signalText='O mercado está sinalizando pressão de alta em '+altas+' trecho(s). O trecho com maior movimento é <strong>'+(topAlta?topAlta.tf:'–')+'</strong> com variação média de <strong>'+altaSign+altaPct.toFixed(1)+'%</strong> sobre a referência.';
-  }} else if(quedas>altas*2){{
-    signalClass='down'; signalLabel='Movimento de queda generalizado';
-    signalText='O mercado está sinalizando queda de preços em '+quedas+' trecho(s). O trecho com maior redução é <strong>'+(topQueda?topQueda.tf:'–')+'</strong> com '+quedaPct.toFixed(1)+'% abaixo da referência.';
-  }} else {{
-    signalClass='neutral'; signalLabel='Mercado misto — monitorar';
-    signalText='Sinais divergentes: '+altas+' trecho(s) em alta e '+quedas+' em queda. Variação média geral de '+avgSign2+avg.toFixed(1)+'%. Recomenda-se acompanhar a evolução semanal.';
-  }}
-
-  const top8 = all.slice(0,8);
-  const bot8 = [...all].sort((a,b)=>a.pct-b.pct).slice(0,8);
-
-  document.getElementById('panel-visao').innerHTML=`
-    <div class="signal ${{signalClass}}">
-      <div class="signal-lbl">Sinal de mercado — ${{new Date().toLocaleDateString('pt-BR')}}</div>
-      <div class="signal-title">${{signalLabel}}</div>
-      <div class="signal-body">${{signalText}}</div>
-    </div>
-
-    <div class="kpi-grid">
-      <div class="kpi ${{avg>=5?'up':avg<=-5?'down':'warn'}}">
-        <div class="kpi-lbl">Variação média geral</div>
-        <div class="kpi-val">${{avgSign2+avg.toFixed(1)}}%</div>
-        <div class="kpi-desc">Todos os trechos e períodos</div>
-      </div>
-      <div class="kpi up">
-        <div class="kpi-lbl">Trechos em alta ≥5%</div>
-        <div class="kpi-val">${{altas}}</div>
-        <div class="kpi-desc">de ${{all.length}} monitorados</div>
-      </div>
-      <div class="kpi down">
-        <div class="kpi-lbl">Trechos em queda ≥5%</div>
-        <div class="kpi-val">${{quedas}}</div>
-        <div class="kpi-desc">de ${{all.length}} monitorados</div>
-      </div>
-      <div class="kpi warn">
-        <div class="kpi-lbl">Comportamento instável</div>
-        <div class="kpi-val">${{instaveis}}</div>
-        <div class="kpi-desc">desvio padrão &gt;10%</div>
-      </div>
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
-      <div class="cc">
-        <h3>Top 8 maiores altas</h3>
-        <p class="cdesc">Trechos com maior pressão de alta da concorrência</p>
-        <div class="cwrap" style="height:${{Math.max(240,top8.length*36)}}px">
-          <canvas id="c-top-altas"></canvas>
-        </div>
-      </div>
-      <div class="cc">
-        <h3>Top 8 maiores quedas</h3>
-        <p class="cdesc">Trechos onde a concorrência reduziu mais os preços</p>
-        <div class="cwrap" style="height:${{Math.max(240,bot8.length*36)}}px">
-          <canvas id="c-top-quedas"></canvas>
-        </div>
-      </div>
-    </div>
-
-    <div class="tc">
-      <div class="th2"><h3>Todos os trechos — resumo de movimentos</h3></div>
-      <table>
-        <thead><tr>
-          <th>Trecho</th>
-          <th>Variação média</th>
-          <th>Volatilidade</th>
-          <th>Obs.</th>
-          <th>Sinal</th>
-        </tr></thead>
-        <tbody>
-          ${{all.map(r=>`
-            <tr>
-              <td class="tt">${{r.tf}}</td>
-              <td>${{fv(r.pct)}}</td>
-              <td><span style="color:${{r.stddev>10?CWN:r.stddev>5?'#888':CGR}};font-size:12px">
-                ${{r.stddev>10?'⚡ Alta':r.stddev>5?'Média':'Baixa'}} (${{r.stddev.toFixed(1)}}σ)
-              </span></td>
-              <td style="color:var(--muted);font-size:12px">${{r.n}}</td>
-              <td>${{movBadge(r.pct,r.stddev)}}</td>
-            </tr>`).join('')}}
-        </tbody>
-      </table>
-    </div>
-  `;
-
-  hbarChart('c-top-altas', top8.map(r=>r.tf), top8.map(r=>parseFloat(r.pct.toFixed(1))),
-    top8.map(r=>r.pct>0?CUP:CDN), Math.max(240,top8.length*36));
-  hbarChart('c-top-quedas', bot8.map(r=>r.tf), bot8.map(r=>parseFloat(r.pct.toFixed(1))),
-    bot8.map(r=>r.pct>0?CUP:CDN), Math.max(240,bot8.length*36));
-}}
-
-// ── MAIORES ALTAS ─────────────────────────────────────────────────────────────
-// Retorna todas as obs de um trecho em todos os períodos com data/antecedência
-function getPeriodoLabel(k){{
-  if(k==='semanas')return'Sem. ant.';
-  const found=[...CONFIG.periodos,...CONFIG.feriados].find(p=>p.key===k);
-  return found?found.nome||found.label:k;
-}}
-
-function getDrillRows(trecho_unico){{
-  const keys=['semanas','s16','s23','pascoa','tiradentes'];
-  const rows=[];
-  keys.forEach(k=>{{
-    if(!INJECTED[k])return;
-    INJECTED[k].filter(r=>r.trecho_unico===trecho_unico).forEach(r=>{{
-      const pct=vari(r.media_preco_atual,r.media_preco_referencia);
-      rows.push({{
-        periodo:getPeriodoLabel(k),
-        periodoKey:k,
-        data:r.data||'–',
-        antecedencia:r.antecedencia!=null?'D'+r.antecedencia:'–',
-        atual:r.media_preco_atual,
-        ref:r.media_preco_referencia,
-        pct
-      }});
-    }});
-  }});
-  return rows.sort((a,b)=>Math.abs(b.pct||0)-Math.abs(a.pct||0));
-}}
-
-function drillSummary(trecho_unico){{
-  // Agrega por período — mostra média de cada período para identificar qual puxa
-  const keys=['semanas','s16','s23','pascoa','tiradentes'];
-  const summary=[];
-  keys.forEach(k=>{{
-    if(!INJECTED[k])return;
-    const recs=INJECTED[k].filter(r=>r.trecho_unico===trecho_unico);
-    if(!recs.length)return;
-    const avg=recs.reduce((s,r)=>s+(vari(r.media_preco_atual,r.media_preco_referencia)||0),0)/recs.length;
-    summary.push({{label:getPeriodoLabel(k),pct:avg,n:recs.length}});
-  }});
-  return summary;
-}}
-
-function toggleDrill(id){{
-  const el=document.getElementById(id);
-  if(el)el.classList.toggle('open');
-}}
-
-function drillTable(trecho_unico){{
-  const summary=drillSummary(trecho_unico);
-  const rows=getDrillRows(trecho_unico);
-  if(!rows.length)return '<p style="padding:10px;color:var(--muted);font-size:12px">Sem detalhamento disponível.</p>';
-
-  // Resumo por período — identifica qual período puxa o resultado
-  const summaryHtml=summary.map(s=>{{
-    const bar=Math.min(Math.abs(s.pct)*2,100);
-    const col=s.pct>5?CUP:s.pct<-5?CDN:CGR;
-    return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-      <span style="font-size:11px;color:var(--muted);min-width:90px">${{s.label}}</span>
-      <div style="flex:1;background:var(--surface2);border-radius:3px;height:8px;overflow:hidden">
-        <div style="width:${{bar}}%;height:100%;background:${{col}};border-radius:3px"></div>
-      </div>
-      <span style="font-size:11px;font-weight:600;min-width:50px;text-align:right;color:${{col}}">${{s.pct>0?'+':''}}${{s.pct.toFixed(1)}}%</span>
-      <span style="font-size:10px;color:var(--faint)">${{s.n}} obs.</span>
-    </div>`;
-  }}).join('');
-
-  // Detalhe por data — top 10 mais extremos
-  const top=rows.slice(0,10);
-  const trs=top.map(r=>`
-    <tr>
-      <td style="color:var(--muted);font-size:11px">${{r.periodo}}</td>
-      <td style="font-size:11px">${{r.data}}</td>
-      <td style="color:var(--muted);font-size:11px">${{r.antecedencia}}</td>
-      <td style="font-size:11px">R$ ${{parseFloat(r.ref).toFixed(2).replace('.',',')}}</td>
-      <td style="font-size:11px">R$ ${{parseFloat(r.atual).toFixed(2).replace('.',',')}}</td>
-      <td>${{fv(r.pct)}}</td>
-    </tr>`).join('');
-
-  return`
-    <div style="margin-bottom:10px">
-      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin-bottom:6px">Variação por período</div>
-      ${{summaryHtml}}
-    </div>
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin-bottom:6px;margin-top:12px">Top datas mais relevantes</div>
-    <table class="drill-table">
-      <thead><tr><th>Período</th><th>Data</th><th>Antec.</th><th>Ref.</th><th>Atual</th><th>Var.</th></tr></thead>
-      <tbody>${{trs}}</tbody>
-    </table>`;
-}}
-
-function renderAltas(){{
-  const all=allAgg().filter(r=>r.pct>0).sort((a,b)=>b.pct-a.pct);
-  if(!all.length){{document.getElementById('panel-altas').innerHTML='<div class="empty"><h3>Nenhuma alta identificada</h3></div>';return;}}
-
-  const tbody=all.map((r,i)=>{{
-    const did='drill-alta-'+i;
-    return`
-      <tr>
-        <td class="tt">${{r.tf}}</td>
-        <td>${{fv(r.pct)}}</td>
-        <td style="font-size:12px;color:var(--muted)">${{r.stddev.toFixed(1)}}σ</td>
-        <td>${{movBadge(r.pct,r.stddev)}}</td>
-        <td><button class="drill-btn" onclick="toggleDrill('${{did}}')">+ ver datas</button></td>
-      </tr>
-      <tr id="${{did}}" class="drill-row">
-        <td colspan="5"><div class="drill-inner">${{drillTable(r.trecho_unico)}}</div></td>
-      </tr>`;
-  }}).join('');
-
-  document.getElementById('panel-altas').innerHTML=`
-    <h2 class="stitle">Trechos com maiores altas</h2>
-    <p class="sdesc">Concorrentes aumentando preços — clique em "ver datas" para ver quais datas estão puxando o resultado.</p>
-    <div class="cc">
-      <h3>Variação positiva por trecho</h3>
-      <p class="cdesc">Média de todos os períodos carregados</p>
-      <div class="cwrap" style="height:${{Math.max(300,all.length*36)}}px">
-        <canvas id="c-altas"></canvas>
-      </div>
-    </div>
-    <div class="tc">
-      <div class="th2"><h3>Detalhamento — clique em "ver datas" para expandir</h3></div>
-      <table>
-        <thead><tr><th>Trecho</th><th>Variação média</th><th>Volatilidade</th><th>Sinal</th><th></th></tr></thead>
-        <tbody>${{tbody}}</tbody>
-      </table>
-    </div>`;
-
-  hbarChart('c-altas', all.map(r=>r.tf), all.map(r=>parseFloat(r.pct.toFixed(1))),
-    all.map(()=>CUP), Math.max(300,all.length*36));
-}}
-
-// ── MAIORES QUEDAS ────────────────────────────────────────────────────────────
-function renderQuedas(){{
-  const all=allAgg().filter(r=>r.pct<0).sort((a,b)=>a.pct-b.pct);
-  if(!all.length){{document.getElementById('panel-quedas').innerHTML='<div class="empty"><h3>Nenhuma queda identificada</h3></div>';return;}}
-
-  const tbody=all.map((r,i)=>{{
-    const did='drill-queda-'+i;
-    return`
-      <tr>
-        <td class="tt">${{r.tf}}</td>
-        <td>${{fv(r.pct)}}</td>
-        <td style="font-size:12px;color:var(--muted)">${{r.stddev.toFixed(1)}}σ</td>
-        <td>${{movBadge(r.pct,r.stddev)}}</td>
-        <td><button class="drill-btn" onclick="toggleDrill('${{did}}')">+ ver datas</button></td>
-      </tr>
-      <tr id="${{did}}" class="drill-row">
-        <td colspan="5"><div class="drill-inner">${{drillTable(r.trecho_unico)}}</div></td>
-      </tr>`;
-  }}).join('');
-
-  document.getElementById('panel-quedas').innerHTML=`
-    <h2 class="stitle">Trechos com maiores quedas</h2>
-    <p class="sdesc">Concorrentes reduzindo preços — clique em "ver datas" para ver quais datas estão puxando o resultado.</p>
-    <div class="cc">
-      <h3>Variação negativa por trecho</h3>
-      <p class="cdesc">Média de todos os períodos carregados</p>
-      <div class="cwrap" style="height:${{Math.max(300,all.length*36)}}px">
-        <canvas id="c-quedas"></canvas>
-      </div>
-    </div>
-    <div class="tc">
-      <div class="th2"><h3>Detalhamento — clique em "ver datas" para expandir</h3></div>
-      <table>
-        <thead><tr><th>Trecho</th><th>Variação média</th><th>Volatilidade</th><th>Sinal</th><th></th></tr></thead>
-        <tbody>${{tbody}}</tbody>
-      </table>
-    </div>`;
-
-  hbarChart('c-quedas', all.map(r=>r.tf), all.map(r=>parseFloat(r.pct.toFixed(1))),
-    all.map(()=>CDN), Math.max(300,all.length*36));
-}}
-
-// ── COMPORTAMENTO INSTÁVEL ────────────────────────────────────────────────────
-function renderInstavel(){{
-  const all=allAgg().sort((a,b)=>b.stddev-a.stddev);
-  if(!all.length){{document.getElementById('panel-instavel').innerHTML='<div class="empty"><h3>Nenhum dado</h3></div>';return;}}
-
-  document.getElementById('panel-instavel').innerHTML=`
-    <h2 class="stitle">Comportamento instável</h2>
-    <p class="sdesc">Trechos com maior volatilidade de preço — concorrentes mudando estratégia com frequência.</p>
-    <div class="cc">
-      <h3>Desvio padrão por trecho (σ)</h3>
-      <p class="cdesc">Quanto maior o σ, mais inconsistente o comportamento de precificação da concorrência</p>
-      <div class="cwrap" style="height:${{Math.max(300,all.length*36)}}px">
-        <canvas id="c-instavel"></canvas>
-      </div>
-    </div>
-    <div class="tc">
-      <div class="th2"><h3>Ranking de volatilidade</h3></div>
-      <table>
-        <thead><tr><th>Trecho</th><th>Desvio padrão (σ)</th><th>Variação média</th><th>Obs.</th><th>Sinal</th></tr></thead>
-        <tbody>${{all.map(r=>`
-          <tr>
-            <td class="tt">${{r.tf}}</td>
-            <td style="font-weight:600;color:${{r.stddev>10?CWN:r.stddev>5?'#888':CGR}}">${{r.stddev.toFixed(1)}}σ</td>
-            <td>${{fv(r.pct)}}</td>
-            <td style="font-size:12px;color:var(--muted)">${{r.n}}</td>
-            <td>${{movBadge(r.pct,r.stddev)}}</td>
-          </tr>`).join('')}}
-        </tbody>
-      </table>
-    </div>`;
-
-  destroyChart('c-instavel');
-  setTimeout(()=>{{
-    const ctx=document.getElementById('c-instavel');if(!ctx)return;
-    CI['c-instavel']=new Chart(ctx,{{type:'bar',
-      data:{{labels:all.map(r=>r.tf),datasets:[{{
-        data:all.map(r=>parseFloat(r.stddev.toFixed(1))),
-        backgroundColor:all.map(r=>r.stddev>10?CWN:r.stddev>5?'#C89040':CGR),
-        borderRadius:4,borderSkipped:false
-      }}]}},
-      options:{{indexAxis:'y',responsive:true,maintainAspectRatio:false,
-        plugins:{{legend:{{display:false}},tooltip:{{callbacks:{{label:c=>`σ = ${{c.raw.toFixed(1)}}`}}}}}},
-        scales:{{
-          x:{{grid:{{color:'rgba(0,0,0,0.05)'}},ticks:{{callback:v=>`σ${{v}}`,font:{{size:11}}}}}},
-          y:{{grid:{{display:false}},ticks:{{font:{{size:11}},color:'#6B6963'}}}}
-        }}
-      }}
-    }});
-  }},50);
-}}
-
-// ── TENDÊNCIA SEMANAL ─────────────────────────────────────────────────────────
-function renderTendencia(){{
-  const periods=[{{key:'semanas',label:'Sem. ant.'}},...CONFIG.periodos];
-  const available=periods.filter(p=>INJECTED[p.key]);
-  if(available.length<2){{
-    document.getElementById('panel-tendencia').innerHTML='<div class="empty"><h3>Carregue ao menos 2 semanas</h3><p>Para ver tendência é necessário ter pelo menos 2 períodos semanais carregados.</p></div>';
-    return;
-  }}
-
-  // Trechos presentes em todos os períodos disponíveis
-  const trechoSets=available.map(p=>new Set(aggByTrecho(INJECTED[p.key]).map(r=>r.trecho_unico)));
-  const comuns=[...trechoSets[0]].filter(t=>trechoSets.every(s=>s.has(t)));
-
-  const rows=comuns.map(t=>{{
-    const pcts=available.map(p=>{{
-      const found=aggByTrecho(INJECTED[p.key]).find(r=>r.trecho_unico===t);
-      return found?parseFloat(found.pct.toFixed(1)):null;
-    }});
-    const trend=pcts.length>=2?(pcts[pcts.length-1]-pcts[0]):0;
-    return{{t,tf:ts(t),pcts,trend}};
-  }}).sort((a,b)=>Math.abs(b.trend)-Math.abs(a.trend));
-
-  const sparkRows=rows.map(r=>{{
-    const dots=r.pcts.map((p,i)=>{{
-      const c=dotColor(p||0);
-      const lbl=available[i].label;
-      return`<div class="spark-dot" style="background:${{c}};title='${{lbl}}'" title="${{lbl}}: ${{p>0?'+':''}}${{p?.toFixed(1)}}%">${{p>0?'+':''}}${{p?.toFixed(0)}}</div>`;
-    }}).join('');
-    const arrow=r.trend>3?'↑':r.trend<-3?'↓':'→';
-    const ac=r.trend>3?CUP:r.trend<-3?CDN:CGR;
-    return`<div class="spark-row">
-      <div class="spark-label">${{r.tf}}</div>
-      <div class="spark-dots">${{dots}}</div>
-      <div class="spark-val" style="color:${{ac}}">${{arrow}} ${{r.trend>0?'+':''}}${{r.trend.toFixed(1)}}%</div>
-    </div>`;
-  }}).join('');
-
-  document.getElementById('panel-tendencia').innerHTML=`
-    <h2 class="stitle">Evolução semanal de preços</h2>
-    <p class="sdesc">Como os preços da concorrência evoluíram semana a semana. Cada bolinha representa a variação média daquele período.</p>
-    <div class="ig" style="margin-bottom:16px">
-      <div class="ic">
-        <h4>Legenda das bolinhas</h4>
-        <p style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-          <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${{CUP}};vertical-align:middle"></span> Alta &gt;10%</span>
-          <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#E07050;vertical-align:middle"></span> Alta leve</span>
-          <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${{CGR}};vertical-align:middle"></span> Estável</span>
-          <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#50A070;vertical-align:middle"></span> Queda leve</span>
-          <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${{CDN}};vertical-align:middle"></span> Queda &gt;10%</span>
-        </p>
-      </div>
-      <div class="ic">
-        <h4>Períodos carregados</h4>
-        <p>${{available.map(p=>`<strong>${{p.label}}</strong>`).join(' → ')}}</p>
-      </div>
-    </div>
-    <div class="cc">
-      <h3>Trajetória por trecho</h3>
-      <p class="cdesc">Ordenado por maior variação acumulada no período</p>
-      ${{sparkRows}}
-    </div>`;
-}}
-
-// ── FERIADOS ──────────────────────────────────────────────────────────────────
-function renderFeriados(){{
-  const feriados=CONFIG.feriados.filter(f=>INJECTED[f.key]);
-
-  if(!feriados.length){{
-    document.getElementById('panel-feriados').innerHTML='<div class="empty"><h3>Nenhum feriado carregado</h3><p>Carregue os arquivos de Páscoa e/ou Tiradentes.</p></div>';
-    return;
-  }}
-
-  // Separa rows por dia (ida/volta) usando a coluna 'data'
-  function rowsByDay(rows, dateStr){{
-    return enrich(rows.filter(r=>r.data && String(r.data).includes('-'+dateStr+'-') || String(r.data).endsWith('-'+dateStr)));
-  }}
-
-  // Agrega por trecho para um subset de rows
-  function aggSubset(rows){{
-    const byT={{}};
-    rows.forEach(r=>{{
-      if(!byT[r.trecho_unico])byT[r.trecho_unico]=[];
-      byT[r.trecho_unico].push(r.pct||0);
-    }});
-    return Object.entries(byT).map(([t,pcts])=>{{
-      const avg=pcts.reduce((s,v)=>s+v,0)/pcts.length;
-      return{{trecho_unico:t,tf:ts(t),pct:avg}};
-    }}).sort((a,b)=>a.pct-b.pct);
-  }}
-
-  let html='';
-  html+='<h2 class="stitle">Comparativo de feriados por perna</h2>';
-  html+='<p class="sdesc">Variação por dia de pico — ida e volta separados para identificar assimetrias de precificação vs. Carnaval.</p>';
-
-  let chartCount=0;
-  feriados.forEach(f=>{{
-    html+='<h2 class="stitle" style="margin-top:28px">'+f.nome+' vs '+f.ref+'</h2>';
-
-    f.dias.forEach(dia=>{{
-      const subset=rowsByDay(INJECTED[f.key], dia.dateStr);
-      if(!subset.length)return;
-      const agg=aggSubset(subset);
-      const cid='c-fer-'+f.key+'-'+dia.dateStr;
-      chartCount++;
-
-      // Tabela por dia
-      const tblRows=agg.slice().reverse().map(r=>'<tr><td class="tt">'+r.tf+'</td><td>'+fv(r.pct)+'</td><td>'+movBadge(r.pct,0)+'</td></tr>').join('');
-
-      html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">';
-      html+='<div class="cc">';
-      html+='<h3>'+dia.label+'</h3>';
-      html+='<p class="cdesc">Variação vs. '+f.ref+' — perna '+dia.label.split(' ')[0].toLowerCase()+'</p>';
-      html+='<div class="cwrap" style="height:'+Math.max(240,agg.length*34)+'px"><canvas id="'+cid+'"></canvas></div>';
-      html+='</div>';
-      html+='<div class="tc" style="height:fit-content">';
-      html+='<div class="th2"><h3>Tabela — '+dia.label+'</h3></div>';
-      html+='<table><thead><tr><th>Trecho</th><th>Variação</th><th>Sinal</th></tr></thead>';
-      html+='<tbody>'+tblRows+'</tbody></table>';
-      html+='</div>';
-      html+='</div>';
-
-      setTimeout(()=>hbarChart(cid,
-        agg.map(r=>r.tf),
-        agg.map(r=>parseFloat(r.pct.toFixed(1))),
-        agg.map(r=>r.pct>0?CUP:CDN),
-        Math.max(240,agg.length*34)
-      ), chartCount*80);
-    }});
-  }});
-
-  document.getElementById('panel-feriados').innerHTML=html;
-}}
-
-// ── ROUTER ────────────────────────────────────────────────────────────────────
-function renderPanel(key){{
-  if(key==='visao')    renderVisao();
-  else if(key==='altas')     renderAltas();
-  else if(key==='quedas')    renderQuedas();
-  else if(key==='instavel')  renderInstavel();
-  else if(key==='tendencia') renderTendencia();
-  else if(key==='feriados')  renderFeriados();
-}}
-
-// ── INIT ──────────────────────────────────────────────────────────────────────
-document.getElementById('update-text').textContent = UPDATE_LABEL;
-renderVisao();
-</script>
-</body></html>"""
-
-import streamlit.components.v1 as components
-import hashlib
-
-data_hash = hashlib.md5(data_js.encode()).hexdigest()
-html_with_hash = html.replace("</body>", f"<!-- hash:{data_hash} --></body>")
-components.html(html_with_hash, height=2800, scrolling=True)
+        feriado_cfg = {
+            "nome":    st.text_input("Nome do feriado", value="Feriado"),
+            "key":     "manual",
+            "dt_ini":  st.text_input("Data início (AAAA-MM-DD)", value=""),
+            "dt_fim":  st.text_input("Data fim   (AAAA-MM-DD)", value=""),
+            "arquivo": "",
+        }
+        csv_url = csv_url_manual.strip()
+        if not csv_url:
+            st.info("Cole a URL do CSV acima para começar.")
+            st.stop()
+        feriado_nome = feriado_cfg["nome"]
+    else:
+        feriado_options = {f["nome"]: f for f in feriados}
+        feriado_nome    = st.selectbox("Selecione", list(feriado_options.keys()), label_visibility="collapsed")
+        feriado_cfg     = feriado_options[feriado_nome]
+        if "atualizado" in feriado_cfg:
+            st.markdown(f'<div class="updated-tag">atualizado {feriado_cfg["atualizado"]}</div>', unsafe_allow_html=True)
+        csv_url = f"{GITHUB_RAW}/{feriado_cfg['arquivo']}"
+
+    st.divider()
+
+    # Carrega dados do feriado selecionado
+    df_raw = load_csv(csv_url)
+
+    if df_raw.empty:
+        st.error("Sem dados para este feriado.")
+        st.stop()
+
+    st.markdown("### 🔍 Filtros")
+
+    # Datas
+    datas_disp = sorted(df_raw["data"].dt.date.unique()) if "data" in df_raw.columns else []
+    datas_sel  = st.multiselect("Data", datas_disp, default=datas_disp, format_func=lambda d: d.strftime("%d/%m"))
+
+    # Turnos
+    turnos_disp = sorted(df_raw["turno"].dropna().unique()) if "turno" in df_raw.columns else []
+    turnos_sel  = st.multiselect("Turno", turnos_disp, default=turnos_disp)
+
+    # Rotas
+    rotas_disp = sorted(df_raw["rota_principal"].dropna().unique()) if "rota_principal" in df_raw.columns else []
+    rotas_sel  = st.multiselect("Rota", rotas_disp, default=rotas_disp[:10] if len(rotas_disp) > 10 else rotas_disp)
+
+    # Antecedência
+    ant_min = int(df_raw["antecedencia"].min()) if "antecedencia" in df_raw.columns else 0
+    ant_max = int(df_raw["antecedencia"].max()) if "antecedencia" in df_raw.columns else 80
+    ant_sel = st.slider("Antecedência (dias)", ant_min, ant_max, (ant_min, ant_max))
+
+    st.divider()
+    if st.button("🔄 Recarregar dados"):
+        st.cache_data.clear()
+        st.rerun()
+
+
+# ── FILTRA ────────────────────────────────────────────────────────────────────
+df = df_raw.copy()
+if datas_sel and "data" in df.columns:
+    df = df[df["data"].dt.date.isin(datas_sel)]
+if turnos_sel and "turno" in df.columns:
+    df = df[df["turno"].isin(turnos_sel)]
+if rotas_sel and "rota_principal" in df.columns:
+    df = df[df["rota_principal"].isin(rotas_sel)]
+if "antecedencia" in df.columns:
+    df = df[df["antecedencia"].between(ant_sel[0], ant_sel[1])]
+
+
+# ── HEADER ────────────────────────────────────────────────────────────────────
+col_title, col_period = st.columns([3, 1])
+with col_title:
+    st.markdown(f"<h1>📈 {feriado_nome}</h1>", unsafe_allow_html=True)
+with col_period:
+    st.markdown(
+        f'<div class="updated-tag" style="text-align:right;margin-top:8px">'
+        f'{feriado_cfg.get("dt_ini","")} → {feriado_cfg.get("dt_fim","")}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+st.divider()
+
+
+# ── KPIs ──────────────────────────────────────────────────────────────────────
+k1, k2, k3, k4 = st.columns(4)
+
+with k1:
+    ratio_med = df["ratio_vs_proj"].mean() if "ratio_vs_proj" in df.columns else None
+    css_cls, label = color_ratio(ratio_med)
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label">LF atual / Projetado</div>
+        <div class="metric-value {'green' if ratio_med and ratio_med>=1.1 else 'red' if ratio_med and ratio_med<0.9 else 'yellow'}">{label}</div>
+    </div>""", unsafe_allow_html=True)
+
+with k2:
+    occ_med = df["occ_atual"].mean() if "occ_atual" in df.columns else None
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label">Ocupação média</div>
+        <div class="metric-value {'green' if occ_med and occ_med>=0.7 else 'yellow' if occ_med and occ_med>=0.5 else 'red'}">{fmt_pct(occ_med)}</div>
+    </div>""", unsafe_allow_html=True)
+
+with k3:
+    preco_med = df["preco_praticado"].mean() if "preco_praticado" in df.columns else None
+    cc_med    = df["price_cc"].mean() if "price_cc" in df.columns else None
+    delta_pct = (preco_med / cc_med - 1) if preco_med and cc_med else None
+    delta_str = f" ({delta_pct:+.1%} vs CC)" if delta_pct is not None else ""
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label">Preço médio praticado</div>
+        <div class="metric-value">{fmt_brl(preco_med)}</div>
+        <div class="updated-tag">{f"CC: {fmt_brl(cc_med)}{delta_str}" if cc_med else "–"}</div>
+    </div>""", unsafe_allow_html=True)
+
+with k4:
+    n_rotas = df["rota_principal"].nunique() if "rota_principal" in df.columns else 0
+    n_rows  = len(df)
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label">Rotas | Linhas</div>
+        <div class="metric-value">{n_rotas}</div>
+        <div class="updated-tag">{n_rows:,} registros filtrados</div>
+    </div>""", unsafe_allow_html=True)
+
+st.divider()
+
+
+# ── GRÁFICOS ──────────────────────────────────────────────────────────────────
+PLOT_BG   = "#0d0f14"
+GRID_CLR  = "#1e2230"
+FONT_CLR  = "#9ca3af"
+PLOT_FONT = dict(family="IBM Plex Mono", color=FONT_CLR, size=11)
+
+def base_layout(title=""):
+    return dict(
+        title=dict(text=title, font=dict(family="IBM Plex Mono", size=13, color="#e8eaf0"), x=0),
+        paper_bgcolor=PLOT_BG, plot_bgcolor=PLOT_BG,
+        font=PLOT_FONT,
+        xaxis=dict(gridcolor=GRID_CLR, zerolinecolor=GRID_CLR, tickfont=PLOT_FONT),
+        yaxis=dict(gridcolor=GRID_CLR, zerolinecolor=GRID_CLR, tickfont=PLOT_FONT),
+        margin=dict(l=48, r=16, t=40, b=40),
+        legend=dict(bgcolor="#13161e", bordercolor=GRID_CLR, borderwidth=1),
+        hovermode="x unified",
+    )
+
+tab_curva, tab_rota, tab_preco, tab_tabela = st.tabs([
+    "📉 Curva de Antecedência",
+    "🗺️ Ranking de Rotas",
+    "💰 Preço vs Concorrência",
+    "📋 Tabela Detalhada",
+])
+
+# ── Tab 1: Curva de Antecedência ──────────────────────────────
+with tab_curva:
+    if "antecedencia" not in df.columns:
+        st.info("Coluna antecedencia não encontrada.")
+    else:
+        grp = (
+            df.groupby("antecedencia", as_index=False)
+            .agg(
+                lf_atual      = ("lf_atual",     "mean"),
+                lf_proj_2026  = ("lf_proj_2026", "mean"),
+                ratio_vs_proj = ("ratio_vs_proj","mean"),
+                occ_atual     = ("occ_atual",     "mean"),
+            )
+            .sort_values("antecedencia", ascending=False)
+        )
+
+        fig = go.Figure()
+        if "lf_proj_2026" in grp.columns:
+            fig.add_trace(go.Scatter(
+                x=grp["antecedencia"], y=grp["lf_proj_2026"],
+                name="LF Projetado", mode="lines",
+                line=dict(color="#4b5563", width=2, dash="dot"),
+            ))
+        if "lf_atual" in grp.columns:
+            fig.add_trace(go.Scatter(
+                x=grp["antecedencia"], y=grp["lf_atual"],
+                name="LF Atual", mode="lines+markers",
+                line=dict(color="#60a5fa", width=2.5),
+                marker=dict(size=5),
+            ))
+
+        # Zona de over/under
+        if "lf_proj_2026" in grp.columns and "lf_atual" in grp.columns:
+            fig.add_trace(go.Scatter(
+                x=pd.concat([grp["antecedencia"], grp["antecedencia"][::-1]]),
+                y=pd.concat([grp["lf_proj_2026"], grp["lf_atual"][::-1]]),
+                fill="toself", fillcolor="rgba(96,165,250,0.08)",
+                line=dict(color="rgba(0,0,0,0)"),
+                showlegend=False, hoverinfo="skip",
+            ))
+
+        layout = base_layout("LF Atual vs Projetado por Antecedência")
+        layout["xaxis"].update(title="Dias de antecedência", autorange="reversed")
+        layout["yaxis"].update(title="Load Factor", tickformat=".0%")
+        fig.update_layout(**layout)
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Ratio bar
+        if "ratio_vs_proj" in grp.columns:
+            colors = ["#34d399" if v >= 1.05 else "#f87171" if v < 0.95 else "#fbbf24"
+                      for v in grp["ratio_vs_proj"]]
+            fig2 = go.Figure(go.Bar(
+                x=grp["antecedencia"], y=grp["ratio_vs_proj"] - 1,
+                marker_color=colors, name="Delta vs Proj",
+            ))
+            fig2.add_hline(y=0, line_color="#4b5563", line_width=1)
+            layout2 = base_layout("Desvio vs Projetado (ratio − 1)")
+            layout2["xaxis"].update(title="Dias de antecedência", autorange="reversed")
+            layout2["yaxis"].update(title="Desvio", tickformat="+.1%")
+            fig2.update_layout(**layout2)
+            st.plotly_chart(fig2, use_container_width=True)
+
+
+# ── Tab 2: Ranking de Rotas ───────────────────────────────────
+with tab_rota:
+    if "rota_principal" not in df.columns:
+        st.info("Coluna rota_principal não encontrada.")
+    else:
+        col_ant = st.slider("Antecedência de referência", ant_min, ant_max, ant_min, key="rota_ant")
+        df_ant  = df[df["antecedencia"] == col_ant] if col_ant in df["antecedencia"].values else df
+
+        grp_rota = (
+            df_ant.groupby(["rota_principal", "sentido"], as_index=False)
+            .agg(
+                ratio_vs_proj = ("ratio_vs_proj","mean"),
+                occ_atual     = ("occ_atual",     "mean"),
+                lf_atual      = ("lf_atual",      "mean"),
+                lf_proj_2026  = ("lf_proj_2026",  "mean"),
+            )
+            .sort_values("ratio_vs_proj", ascending=True)
+        )
+
+        colors_rota = ["#34d399" if v >= 1.05 else "#f87171" if v < 0.95 else "#fbbf24"
+                       for v in grp_rota["ratio_vs_proj"]]
+
+        fig3 = go.Figure(go.Bar(
+            x=grp_rota["ratio_vs_proj"],
+            y=grp_rota["sentido"].fillna(grp_rota["rota_principal"]),
+            orientation="h",
+            marker_color=colors_rota,
+            text=[f"{v:.2f}x" for v in grp_rota["ratio_vs_proj"]],
+            textposition="outside",
+        ))
+        fig3.add_vline(x=1, line_color="#4b5563", line_width=1.5, line_dash="dot")
+        layout3 = base_layout(f"Ratio LF Atual/Proj por Sentido — d={col_ant}")
+        layout3["xaxis"].update(title="ratio_vs_proj", tickformat=".2f")
+        layout3["yaxis"].update(title="")
+        layout3["height"] = max(400, len(grp_rota) * 24)
+        fig3.update_layout(**layout3)
+        st.plotly_chart(fig3, use_container_width=True)
+
+
+# ── Tab 3: Preço vs Concorrência ─────────────────────────────
+with tab_preco:
+    if "price_cc" not in df.columns or "preco_praticado" not in df.columns:
+        st.info("Colunas de preço não encontradas.")
+    else:
+        grp_preco = (
+            df.groupby("antecedencia", as_index=False)
+            .agg(
+                preco_praticado = ("preco_praticado","mean"),
+                price_cc        = ("price_cc",       "mean"),
+            )
+            .sort_values("antecedencia", ascending=False)
+        )
+
+        fig4 = go.Figure()
+        fig4.add_trace(go.Scatter(
+            x=grp_preco["antecedencia"], y=grp_preco["price_cc"],
+            name="Concorrência", mode="lines",
+            line=dict(color="#f87171", width=2, dash="dot"),
+        ))
+        fig4.add_trace(go.Scatter(
+            x=grp_preco["antecedencia"], y=grp_preco["preco_praticado"],
+            name="Buser praticado", mode="lines+markers",
+            line=dict(color="#34d399", width=2.5),
+            marker=dict(size=5),
+        ))
+        layout4 = base_layout("Preço Praticado vs Concorrência por Antecedência")
+        layout4["xaxis"].update(title="Dias de antecedência", autorange="reversed")
+        layout4["yaxis"].update(title="R$", tickprefix="R$ ")
+        fig4.update_layout(**layout4)
+        st.plotly_chart(fig4, use_container_width=True)
+
+        # Scatter rota: preco vs ratio
+        st.markdown("<h2>Preço vs Demanda por Rota</h2>", unsafe_allow_html=True)
+        df_scatter = (
+            df.groupby(["rota_principal"], as_index=False)
+            .agg(
+                preco_praticado = ("preco_praticado","mean"),
+                price_cc        = ("price_cc",       "mean"),
+                ratio_vs_proj   = ("ratio_vs_proj",  "mean"),
+                occ_atual       = ("occ_atual",       "mean"),
+            )
+        )
+        df_scatter["gap_preco_pct"] = (df_scatter["preco_praticado"] / df_scatter["price_cc"] - 1) * 100
+
+        fig5 = px.scatter(
+            df_scatter.dropna(subset=["gap_preco_pct","ratio_vs_proj"]),
+            x="gap_preco_pct", y="ratio_vs_proj",
+            size="occ_atual", color="ratio_vs_proj",
+            color_continuous_scale=["#f87171","#fbbf24","#34d399"],
+            hover_name="rota_principal",
+            labels={"gap_preco_pct": "Preço vs CC (%)", "ratio_vs_proj": "LF Atual/Proj"},
+        )
+        fig5.add_hline(y=1,  line_color="#4b5563", line_dash="dot")
+        fig5.add_vline(x=0,  line_color="#4b5563", line_dash="dot")
+        fig5.update_layout(**base_layout("Posicionamento de Preço vs Demanda"))
+        fig5.update_layout(coloraxis_showscale=False)
+        st.plotly_chart(fig5, use_container_width=True)
+
+
+# ── Tab 4: Tabela ─────────────────────────────────────────────
+with tab_tabela:
+    COLS_SHOW = [c for c in [
+        "data","rota_principal","sentido","turno","antecedencia",
+        "occ_atual","lf_atual","lf_proj_2026","ratio_vs_proj",
+        "preco_praticado","price_cc","mult_final","mult_flutuacao",
+        "pax","vagas_restantes",
+    ] if c in df.columns]
+
+    df_show = df[COLS_SHOW].copy()
+
+    # Formata para exibição
+    for col in ["occ_atual","lf_atual","lf_proj_2026","ratio_vs_proj"]:
+        if col in df_show.columns:
+            df_show[col] = df_show[col].map(lambda v: f"{v:.3f}" if pd.notna(v) else "–")
+    for col in ["preco_praticado","price_cc"]:
+        if col in df_show.columns:
+            df_show[col] = df_show[col].map(lambda v: f"R$ {v:.2f}" if pd.notna(v) else "–")
+    if "data" in df_show.columns:
+        df_show["data"] = df_show["data"].dt.strftime("%d/%m")
+
+    busca = st.text_input("🔎 Filtrar rota / sentido", "")
+    if busca:
+        mask = df_show.apply(lambda r: r.astype(str).str.contains(busca, case=False).any(), axis=1)
+        df_show = df_show[mask]
+
+    st.dataframe(df_show, use_container_width=True, height=500)
+    st.download_button(
+        "⬇️ Baixar CSV filtrado",
+        df[COLS_SHOW].to_csv(index=False).encode("utf-8"),
+        file_name=f"feriado_{feriado_cfg['key']}_filtrado.csv",
+        mime="text/csv",
+    )
