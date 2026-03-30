@@ -255,7 +255,7 @@ html = f"""<!DOCTYPE html>
 <div class="header">
   <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
     <div>
-      <div class="title">Inteligência de Mercado — Rodoviário</div>
+      <div class="title">Acompanhamento de mercado — Rodoviário</div>
       <div class="subtitle">Monitoramento de movimentos de preço da concorrência por trecho</div>
     </div>
     <div style="display:flex;align-items:center;gap:6px;background:#E3F2E9;border:1px solid rgba(46,107,64,.2);border-radius:20px;padding:5px 12px;font-size:12px;color:#2E6B40;white-space:nowrap;margin-top:4px">
