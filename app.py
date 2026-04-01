@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
-
+import json as _json
 
 st.set_page_config(
     page_title="Inteligência de Mercado",
@@ -22,43 +22,27 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-with st.expander("📂 Atualizar arquivos CSV", expanded=False):
-    st.caption("Substitua qualquer arquivo para atualizar a análise.")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        up_semanas    = st.file_uploader("Semanas anteriores",  type="csv", key="up_sem")
-        up_s16        = st.file_uploader("Semana 16-22/03",     type="csv", key="up_s16")
-    with col2:
-        up_s23        = st.file_uploader("Semana 23-29/03",     type="csv", key="up_s23")
-        up_pascoa     = st.file_uploader("Feriado Páscoa",      type="csv", key="up_pas")
-    with col3:
-        up_tiradentes = st.file_uploader("Feriado Tiradentes",  type="csv", key="up_tir")
-
-def load_file(upload, default_name):
-    if upload:
-        return pd.read_csv(upload)
+# ── LOAD DATA ─────────────────────────────────────────────────────────────────
+def load_file(default_name):
     for folder in ["data", "."]:
         path = os.path.join(folder, default_name)
         if os.path.exists(path):
             return pd.read_csv(path)
     return None
 
-df_semanas    = load_file(up_semanas,    "semanas_anteriores.csv")
-df_s16        = load_file(up_s16,        "semana_16_a_22.csv")
-df_s23        = load_file(up_s23,        "semana_23_a_29.csv")
-df_pascoa     = load_file(up_pascoa,     "feriado_pascoa.csv")
-df_tiradentes = load_file(up_tiradentes, "feriado_tiradentes.csv")
+df_semanas    = load_file("semanas_anteriores.csv")
+df_s16        = load_file("semana_16_a_22.csv")
+df_s23        = load_file("semana_23_a_29.csv")
+df_pascoa     = load_file("feriado_pascoa.csv")
+df_tiradentes = load_file("feriado_tiradentes.csv")
 
-# ── CARREGA CONFIG DE FERIADOS ────────────────────────────────────────────────
-import json as _json
-
+# ── CARREGA CONFIG ────────────────────────────────────────────────────────────
 def load_config():
     for folder in ["data", "."]:
         path = os.path.join(folder, "config.json")
         if os.path.exists(path):
             with open(path) as f:
                 return _json.load(f)
-    # fallback padrão
     return {
         "periodos": [
             {"key": "s16", "label": "16–22/03"},
@@ -88,26 +72,22 @@ def load_config():
 
 cfg = load_config()
 
-any_upload = any([up_semanas, up_s16, up_s23, up_pascoa, up_tiradentes])
-if any_upload:
-    now_sp = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M")
-    update_label = f"Importado em {now_sp} · via upload manual"
-else:
-    try:
-        import subprocess
-        result = subprocess.run(
-            ["git", "log", "-1", "--format=%ci", "--", "feriado_tiradentes.csv", "data/feriado_tiradentes.csv"],
-            capture_output=True, text=True, cwd="."
-        )
-        if result.stdout.strip():
-            from datetime import datetime as dt
-            git_date = dt.fromisoformat(result.stdout.strip())
-            git_date_sp = git_date.astimezone(ZoneInfo("America/Sao_Paulo"))
-            update_label = f"Atualizado em {git_date_sp.strftime('%d/%m/%Y %H:%M')} · via Databricks"
-        else:
-            update_label = "via Databricks"
-    except Exception:
+# ── TIMESTAMP ─────────────────────────────────────────────────────────────────
+try:
+    import subprocess
+    result = subprocess.run(
+        ["git", "log", "-1", "--format=%ci", "--", "feriado_tiradentes.csv", "data/feriado_tiradentes.csv"],
+        capture_output=True, text=True, cwd="."
+    )
+    if result.stdout.strip():
+        from datetime import datetime as dt
+        git_date = dt.fromisoformat(result.stdout.strip())
+        git_date_sp = git_date.astimezone(ZoneInfo("America/Sao_Paulo"))
+        update_label = f"Atualizado em {git_date_sp.strftime('%d/%m/%Y %H:%M')} · via Databricks"
+    else:
         update_label = "via Databricks"
+except Exception:
+    update_label = "via Databricks"
 
 def df_to_json(df):
     if df is None:
@@ -125,6 +105,7 @@ const INJECTED = {{
 const UPDATE_LABEL = "{update_label}";
 const CONFIG = {_json.dumps(cfg, ensure_ascii=False)};
 """
+
 
 html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
